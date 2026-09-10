@@ -1,0 +1,6 @@
+{
+  "name": "HEMA SERVICES",
+  "description": "منصة برمجية متخصصة لتقديم وبيع خدمات تطوير وتصميم المواقع والتطبيقات الرقمية",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
