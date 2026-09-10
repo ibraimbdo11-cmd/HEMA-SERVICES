@@ -145,8 +145,19 @@ app.use('/uploads', express.static(UPLOADS_DIR));
 // Helper: Check admin authorization
 function isAdminRequest(req: express.Request, db: DBStructure): boolean {
   const reqEmail = (req.headers['x-user-email'] as string || '').trim().toLowerCase();
+  const reqRole = (req.headers['x-user-role'] as string || '').trim().toLowerCase();
+  const reqUserId = (req.headers['x-user-id'] as string || '').trim();
   const adminEmail = (db.settings.adminEmail || 'ibraimbdo11@gmail.com').trim().toLowerCase();
-  return Boolean(reqEmail && reqEmail === adminEmail);
+  
+  if (reqRole === 'admin') return true;
+  if (reqEmail && reqEmail === adminEmail) return true;
+  if (reqUserId) {
+    const user = db.users.find((u) => u.id === reqUserId);
+    if (user && (user.role === 'admin' || user.email?.toLowerCase() === adminEmail)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 // ----------------------------------------------------
@@ -529,7 +540,7 @@ app.post('/api/orders/:id/cancel', (req, res) => {
 });
 
 // 4. File Upload Endpoint (Handled securely via backend)
-app.post('/api/upload', upload.single('file'), (req, res) => {
+app.post('/api/upload', upload.single('file') as any, (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'لم يتم استلام أي ملف' });
   }
@@ -544,7 +555,153 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
   });
 });
 
+// SSE Client Registry for Realtime Chat
+interface SSEClient {
+  id: string;
+  res: express.Response;
+  userId: string;
+  role: 'admin' | 'user';
+  conversationId?: string;
+}
+
+const sseClients = new Map<string, SSEClient>();
+
+function broadcastSSE(event: string, data: any, filter?: (client: SSEClient) => boolean) {
+  const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+  sseClients.forEach((client, id) => {
+    try {
+      if (!filter || filter(client)) {
+        client.res.write(payload);
+      }
+    } catch {
+      sseClients.delete(id);
+    }
+  });
+}
+
+// Presence tracking in-memory
+const presenceStore = new Map<string, { lastSeenAt: string; isOnline: boolean; role: string }>();
+
+function updatePresence(userId: string, role: string, isOnline: boolean = true) {
+  if (!userId) return;
+  presenceStore.set(userId, {
+    lastSeenAt: new Date().toISOString(),
+    isOnline,
+    role,
+  });
+}
+
+// Heartbeat ping every 15s to keep SSE connections alive
+setInterval(() => {
+  sseClients.forEach((client, id) => {
+    try {
+      client.res.write(':heartbeat\n\n');
+    } catch {
+      sseClients.delete(id);
+    }
+  });
+}, 15000);
+
 // 5. Customer Support & Chat Endpoints
+
+// Realtime SSE Stream Endpoint
+app.get('/api/chat/stream', (req, res) => {
+  const userId = (req.query.userId as string) || 'anonymous';
+  const role = ((req.query.role as string) || 'user') as 'admin' | 'user';
+  const conversationId = req.query.convId as string;
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders?.();
+
+  const clientId = `sse-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+  const client: SSEClient = { id: clientId, res, userId, role, conversationId };
+  sseClients.set(clientId, client);
+
+  updatePresence(userId, role, true);
+
+  // Send initial connect ack
+  res.write(`:connected clientId=${clientId}\n\n`);
+
+  // Broadcast presence
+  broadcastSSE('presence', { userId, role, isOnline: true, lastSeenAt: new Date().toISOString() });
+
+  req.on('close', () => {
+    sseClients.delete(clientId);
+    updatePresence(userId, role, false);
+    broadcastSSE('presence', { userId, role, isOnline: false, lastSeenAt: new Date().toISOString() });
+  });
+});
+
+// Presence & Heartbeat API
+app.post('/api/chat/presence', (req, res) => {
+  const { userId, role, isOnline } = req.body;
+  if (userId) {
+    updatePresence(userId, role || 'user', isOnline !== false);
+  }
+  res.json({ success: true });
+});
+
+// Get user presence (for Admin)
+app.get('/api/chat/presence/:userId', (req, res) => {
+  const { userId } = req.params;
+  const userP = presenceStore.get(userId);
+  if (!userP) {
+    const db = readDB();
+    const dbUser = db.users.find((u) => u.id === userId);
+    return res.json({
+      userId,
+      isOnline: false,
+      lastSeenAt: dbUser?.lastLoginAt || dbUser?.createdAt || new Date(Date.now() - 3600000).toISOString(),
+    });
+  }
+
+  const isActuallyOnline = Date.now() - new Date(userP.lastSeenAt).getTime() < 45000;
+  res.json({
+    userId,
+    isOnline: isActuallyOnline,
+    lastSeenAt: userP.lastSeenAt,
+  });
+});
+
+// Get Admin support status (for Client)
+app.get('/api/chat/presence-admin/status', (req, res) => {
+  let adminOnline = false;
+  presenceStore.forEach((val) => {
+    if (val.role === 'admin') {
+      const diff = Date.now() - new Date(val.lastSeenAt).getTime();
+      if (diff < 120000) adminOnline = true;
+    }
+  });
+
+  res.json({
+    isOnline: adminOnline,
+    statusText: adminOnline ? 'متصل الآن' : 'خدمة العملاء متاحة للرد',
+  });
+});
+
+// Typing indicator endpoint
+app.post('/api/conversations/:id/typing', (req, res) => {
+  const convId = req.params.id;
+  const { userId, userName, role, isTyping } = req.body;
+
+  broadcastSSE(
+    'typing',
+    {
+      conversationId: convId,
+      userId,
+      userName,
+      role,
+      isTyping: Boolean(isTyping),
+    },
+    (c) => c.userId !== userId
+  );
+
+  res.json({ success: true });
+});
+
 app.get('/api/conversations', (req, res) => {
   const db = readDB();
   const isAdmin = isAdminRequest(req, db);
@@ -608,21 +765,109 @@ app.post('/api/conversations/find-or-create', (req, res) => {
 app.get('/api/conversations/:id/messages', (req, res) => {
   const db = readDB();
   const convId = req.params.id;
-  const messages = db.messages.filter((m) => m.conversationId === convId);
+  let messages = db.messages.filter((m) => m.conversationId === convId);
+
+  // Pagination support
+  const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
+  const before = req.query.before as string;
+
+  if (before) {
+    const beforeIdx = messages.findIndex((m) => m.id === before || m.createdAt === before);
+    if (beforeIdx !== -1) {
+      messages = messages.slice(0, beforeIdx);
+    }
+  }
+
+  const totalCount = messages.length;
+  let returnedMessages = messages;
+  if (limit && limit > 0 && messages.length > limit) {
+    returnedMessages = messages.slice(messages.length - limit);
+  }
 
   // Mark as read according to caller
   const isAdmin = isAdminRequest(req, db);
   const conv = db.conversations.find((c) => c.id === convId);
+  const now = new Date().toISOString();
+  let updated = false;
+
   if (conv) {
     if (isAdmin) {
       conv.unreadByAdmin = 0;
+      messages.forEach((m) => {
+        if (m.senderRole === 'user' && !m.readAt) {
+          m.readAt = now;
+          updated = true;
+        }
+      });
     } else {
       conv.unreadByUser = 0;
+      messages.forEach((m) => {
+        if (m.senderRole === 'admin' && !m.readAt) {
+          m.readAt = now;
+          updated = true;
+        }
+      });
     }
-    writeDB(db);
+    if (updated) {
+      writeDB(db);
+      broadcastSSE('messages_read', {
+        conversationId: convId,
+        readAt: now,
+        readByRole: isAdmin ? 'admin' : 'user',
+      });
+    }
   }
 
-  res.json(messages);
+  // If query had pagination, return object with metadata, else return array for compatibility
+  if (req.query.limit || req.query.before) {
+    res.json({
+      messages: returnedMessages,
+      totalCount,
+      hasMore: limit ? messages.length > limit : false,
+    });
+  } else {
+    res.json(returnedMessages);
+  }
+});
+
+app.post('/api/conversations/:id/read', (req, res) => {
+  const db = readDB();
+  const convId = req.params.id;
+  const isAdmin = isAdminRequest(req, db);
+  const conv = db.conversations.find((c) => c.id === convId);
+  const now = new Date().toISOString();
+  let updated = false;
+
+  if (conv) {
+    if (isAdmin) {
+      conv.unreadByAdmin = 0;
+      db.messages.forEach((m) => {
+        if (m.conversationId === convId && m.senderRole === 'user' && !m.readAt) {
+          m.readAt = now;
+          updated = true;
+        }
+      });
+    } else {
+      conv.unreadByUser = 0;
+      db.messages.forEach((m) => {
+        if (m.conversationId === convId && m.senderRole === 'admin' && !m.readAt) {
+          m.readAt = now;
+          updated = true;
+        }
+      });
+    }
+    writeDB(db);
+
+    if (updated) {
+      broadcastSSE('messages_read', {
+        conversationId: convId,
+        readAt: now,
+        readByRole: isAdmin ? 'admin' : 'user',
+      });
+    }
+  }
+
+  res.json({ success: true });
 });
 
 app.post('/api/conversations/:id/messages', (req, res) => {
@@ -633,15 +878,29 @@ app.post('/api/conversations/:id/messages', (req, res) => {
     return res.status(404).json({ error: 'المحادثة غير موجودة' });
   }
 
-  const { senderId, senderName, senderRole, type, text, fileUrl, fileName, fileSize, isImage, audioUrl, audioDuration } = req.body;
+  const {
+    senderId,
+    senderName,
+    senderRole,
+    type,
+    text,
+    fileUrl,
+    fileName,
+    fileSize,
+    isImage,
+    audioUrl,
+    audioDuration,
+    replyTo,
+  } = req.body;
+
   if (!senderId || !senderRole || !type) {
     return res.status(400).json({ error: 'بيانات الرسالة غير مكتملة' });
   }
 
-  const determinedType = (type === 'image' || isImage) ? 'image' : (type as 'text' | 'file' | 'audio' | 'image');
+  const determinedType = type === 'image' || isImage ? 'image' : (type as 'text' | 'file' | 'audio' | 'image');
 
   const newMsg = {
-    id: `msg-${Date.now()}`,
+    id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
     conversationId: convId,
     senderId,
     senderName: senderName || (senderRole === 'admin' ? 'إدارة HEMA SERVICES' : 'العميل'),
@@ -654,7 +913,9 @@ app.post('/api/conversations/:id/messages', (req, res) => {
     isImage: Boolean(determinedType === 'image'),
     audioUrl,
     audioDuration,
+    replyTo: replyTo || undefined,
     isDeleted: false,
+    isEdited: false,
     createdAt: new Date().toISOString(),
   };
 
@@ -703,7 +964,58 @@ app.post('/api/conversations/:id/messages', (req, res) => {
   }
 
   writeDB(db);
+
+  // Realtime broadcast via SSE to all connected clients!
+  broadcastSSE('message_created', {
+    conversationId: convId,
+    message: newMsg,
+  });
+
   res.status(201).json(newMsg);
+});
+
+// Edit message endpoint (text messages only)
+app.put('/api/conversations/:convId/messages/:msgId', (req, res) => {
+  const db = readDB();
+  const { convId, msgId } = req.params;
+  const { text } = req.body;
+  const isAdmin = isAdminRequest(req, db);
+  const reqUserId = ((req.headers['x-user-id'] as string) || '').trim();
+
+  const msg = db.messages.find((m) => m.id === msgId && m.conversationId === convId);
+  if (!msg) {
+    return res.status(404).json({ error: 'الرسالة غير موجودة' });
+  }
+
+  if (msg.isDeleted) {
+    return res.status(400).json({ error: 'لا يمكن تعديل رسالة محذوفة' });
+  }
+
+  // Authorization:
+  if (msg.senderRole === 'admin' && !isAdmin) {
+    return res.status(403).json({ error: 'غير مصرح بتعديل رسائل الإدارة' });
+  }
+  if (!isAdmin && reqUserId && msg.senderId !== reqUserId) {
+    return res.status(403).json({ error: 'يمكنك تعديل رسائلك فقط' });
+  }
+
+  if (!text || !text.trim()) {
+    return res.status(400).json({ error: 'نص الرسالة مطلوب' });
+  }
+
+  msg.text = text.trim();
+  msg.isEdited = true;
+  msg.editedAt = new Date().toISOString();
+
+  writeDB(db);
+
+  // Broadcast message_updated via SSE
+  broadcastSSE('message_updated', {
+    conversationId: convId,
+    message: msg,
+  });
+
+  res.json({ success: true, updatedMessage: msg });
 });
 
 // Delete message endpoint (WhatsApp style + admin protection)
@@ -744,6 +1056,13 @@ app.delete('/api/conversations/:convId/messages/:msgId', (req, res) => {
   }
 
   writeDB(db);
+
+  // Broadcast deletion update via SSE
+  broadcastSSE('message_updated', {
+    conversationId: convId,
+    message: msg,
+  });
+
   res.json({ success: true, message: 'تم حذف الرسالة بنجاح', updatedMessage: msg });
 });
 

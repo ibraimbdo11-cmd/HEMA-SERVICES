@@ -17,6 +17,7 @@ interface AuthContextType {
   profile: UserProfile | null;
   isAdmin: boolean;
   loading: boolean;
+  isLoggingOut: boolean;
   login: (email: string, pass: string) => Promise<void>;
   register: (name: string, email: string, pass: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
@@ -31,6 +32,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const syncBackendUser = async (user: FirebaseUser) => {
     try {
@@ -114,10 +116,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
-    await fbSignOut(auth);
-    setCurrentUser(null);
-    setProfile(null);
-    setApiAuth('', '');
+    try {
+      setIsLoggingOut(true);
+      await fbSignOut(auth);
+      setCurrentUser(null);
+      setProfile(null);
+      setApiAuth('', '');
+    } finally {
+      setTimeout(() => {
+        setIsLoggingOut(false);
+      }, 150);
+    }
   };
 
   const resetPassword = async (email: string) => {
@@ -140,6 +149,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         profile,
         isAdmin,
         loading,
+        isLoggingOut,
         login,
         register,
         loginWithGoogle,

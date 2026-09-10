@@ -38,12 +38,25 @@
     font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif !important;
     font-feature-settings: 'tnum' on, 'lnum' on, 'zero' on;
   }
+  .font-payment-digits {
+    font-family: 'Outfit', 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif !important;
+    font-feature-settings: 'tnum' 1, 'lnum' 1, 'zero' 1;
+    font-variant-numeric: tabular-nums lining-nums;
+    letter-spacing: -0.015em;
+  }
   .font-wallet {
-    font-family: 'JetBrains Mono', 'Plus Jakarta Sans', monospace !important;
+    font-family: 'JetBrains Mono', 'Outfit', monospace !important;
     font-feature-settings: 'tnum' on, 'zero' on;
   }
   .font-latin {
     font-family: 'Cairo', sans-serif !important;
+  }
+
+  /* Optimize touch responsiveness and eliminate sticky hover */
+  @media (hover: none) and (pointer: coarse) {
+    button, a, input, textarea, select {
+      -webkit-tap-highlight-color: transparent;
+    }
   }
 
   body {
@@ -52,6 +65,18 @@
     letter-spacing: -0.01em;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Smooth scroll reveal */
+  .reveal-init {
+    opacity: 0;
+    transform: translateY(18px);
+    transition: opacity 0.55s cubic-bezier(0.16, 1, 0.3, 1), transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: opacity, transform;
+  }
+  .reveal-visible {
+    opacity: 1;
+    transform: translateY(0);
   }
   
   /* Modern sleek scrollbar */

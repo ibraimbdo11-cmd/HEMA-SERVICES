@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { ServiceItem } from '../types';
 import { ServiceCard } from '../components/ServiceCard';
 import { ServiceCardSkeleton } from '../components/ui/Skeleton';
+import { useScrollReveal } from '../lib/useScrollReveal';
 import { Search, ArrowLeft, Layers, ShieldCheck, Zap } from 'lucide-react';
 
 interface HomePageProps {
@@ -21,6 +22,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   onNavigate,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  useScrollReveal();
 
   const filteredServices = services.filter((s) => {
     const q = searchQuery.trim().toLowerCase();
@@ -71,16 +73,24 @@ export const HomePage: React.FC<HomePageProps> = ({
                 <circle cx="0" cy="48" r="1.5" fill="#34d399" opacity="0.85" />
               </pattern>
 
-              {/* Seamless Radial Mask so grid fades gracefully at all edges & bottom */}
-              <radialGradient id="hero-grid-radial" cx="50%" cy="38%" r="60%">
-                <stop offset="0%" stopColor="#ffffff" stopOpacity="0.9" />
-                <stop offset="45%" stopColor="#ffffff" stopOpacity="0.65" />
-                <stop offset="75%" stopColor="#ffffff" stopOpacity="0.2" />
+              {/* Multi-stop Seamless Radial & Linear Mask: Grid fades out whisper-softly at all borders and bottom */}
+              <radialGradient id="hero-grid-radial" cx="50%" cy="32%" r="62%">
+                <stop offset="0%" stopColor="#ffffff" stopOpacity="0.85" />
+                <stop offset="35%" stopColor="#ffffff" stopOpacity="0.6" />
+                <stop offset="65%" stopColor="#ffffff" stopOpacity="0.25" />
+                <stop offset="85%" stopColor="#ffffff" stopOpacity="0.08" />
                 <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
               </radialGradient>
 
+              <linearGradient id="hero-grid-bottom-fade" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
+                <stop offset="70%" stopColor="#ffffff" stopOpacity="0.8" />
+                <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+              </linearGradient>
+
               <mask id="hero-grid-mask">
                 <rect width="100%" height="100%" fill="url(#hero-grid-radial)" />
+                <rect width="100%" height="100%" fill="url(#hero-grid-bottom-fade)" />
               </mask>
             </defs>
 
@@ -92,6 +102,10 @@ export const HomePage: React.FC<HomePageProps> = ({
               mask="url(#hero-grid-mask)"
             />
           </svg>
+
+          {/* Gentle ambient gradient fades around outer edges */}
+          <div className="absolute inset-0 bg-gradient-to-b from-[#07090e]/40 via-transparent to-[#07090e] pointer-events-none" />
+          <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-[#07090e] via-[#07090e]/70 to-transparent pointer-events-none" />
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
@@ -109,10 +123,9 @@ export const HomePage: React.FC<HomePageProps> = ({
               </span>
             </h1>
 
-            {/* Supporting Subtext: Strictly 2 lines on desktop and tablets */}
+            {/* Supporting Subtext */}
             <p className="text-sm sm:text-base md:text-lg text-slate-300 font-medium font-cairo leading-relaxed max-w-2xl sm:max-w-3xl mx-auto px-2">
-              <span className="block">نصمم ونطور المواقع والتطبيقات والأنظمة السحابية وفق أعلى معايير الجودة</span>
-              <span className="block">مع متابعة مباشرة وتنفيذ دقيق.</span>
+              لتحويل أفكارك الرقمية إلى حلول برمجية متكاملة مع متابعة مستمرة وتنفيذ دقيق.
             </p>
 
             {/* Hero Actions */}

@@ -114,8 +114,12 @@ export const ServiceOrderModal: React.FC<ServiceOrderModalProps> = ({
       return;
     }
 
+    if (proofPreview) {
+      URL.revokeObjectURL(proofPreview);
+    }
     setProofFile(file);
-    setProofPreview(URL.createObjectURL(file));
+    const newPreview = URL.createObjectURL(file);
+    setProofPreview(newPreview);
     setValidationError(null);
 
     try {
@@ -315,7 +319,7 @@ export const ServiceOrderModal: React.FC<ServiceOrderModalProps> = ({
                     </span>
                   ) : (
                     <>
-                      <span className="text-3xl sm:text-4xl md:text-5xl font-black text-emerald-400 tracking-tight font-sans">
+                      <span className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-emerald-400 tracking-tight font-payment-digits">
                         {finalPrice.toLocaleString()}
                       </span>
                       <span className="text-base sm:text-lg font-bold text-emerald-300 font-cairo">
@@ -327,11 +331,11 @@ export const ServiceOrderModal: React.FC<ServiceOrderModalProps> = ({
 
                 {service.isDiscounted && !isBudgetPricing && (
                   <div className="flex items-center justify-center gap-2 pt-0.5">
-                    <span className="text-xs sm:text-sm text-slate-500 line-through font-mono font-medium">
+                    <span className="text-xs sm:text-sm text-slate-500 line-through font-payment-digits font-medium">
                       {service.basePrice.toLocaleString()} ج.م
                     </span>
                     <span className="text-xs font-bold font-cairo text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
-                      وفرت {discountAmount.toLocaleString()} ج.م
+                      وفرت <span className="font-payment-digits font-extrabold">{discountAmount.toLocaleString()}</span> ج.م
                     </span>
                   </div>
                 )}
@@ -353,7 +357,7 @@ export const ServiceOrderModal: React.FC<ServiceOrderModalProps> = ({
                 </div>
 
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 sm:p-3.5 rounded-xl bg-[#090d16] border border-white/[0.08]">
-                  <span className="font-mono text-xl sm:text-2xl font-black text-slate-50 tracking-[0.18em] select-all dir-ltr text-center sm:text-left py-0.5">
+                  <span className="font-payment-digits text-xl sm:text-2xl font-black text-slate-50 tracking-[0.16em] select-all dir-ltr text-center sm:text-left py-0.5">
                     {walletNumber}
                   </span>
 
@@ -388,7 +392,7 @@ export const ServiceOrderModal: React.FC<ServiceOrderModalProps> = ({
                 className="p-4 rounded-2xl bg-[#0a0f1a] border border-white/[0.06] space-y-2.5"
               >
                 <div className="flex items-start gap-3">
-                  <span className="w-6 h-6 rounded-lg bg-emerald-500/15 text-emerald-400 text-xs font-mono font-bold flex items-center justify-center border border-emerald-500/25 shrink-0 mt-0.5">
+                  <span className="w-6 h-6 rounded-lg bg-emerald-500/15 text-emerald-400 text-xs font-payment-digits font-bold flex items-center justify-center border border-emerald-500/25 shrink-0 mt-0.5">
                     1
                   </span>
                   <span className="text-xs sm:text-sm font-medium font-cairo text-slate-300 leading-relaxed">
@@ -397,7 +401,7 @@ export const ServiceOrderModal: React.FC<ServiceOrderModalProps> = ({
                 </div>
 
                 <div className="flex items-start gap-3">
-                  <span className="w-6 h-6 rounded-lg bg-emerald-500/15 text-emerald-400 text-xs font-mono font-bold flex items-center justify-center border border-emerald-500/25 shrink-0 mt-0.5">
+                  <span className="w-6 h-6 rounded-lg bg-emerald-500/15 text-emerald-400 text-xs font-payment-digits font-bold flex items-center justify-center border border-emerald-500/25 shrink-0 mt-0.5">
                     2
                   </span>
                   <span className="text-xs sm:text-sm font-medium font-cairo text-slate-300 leading-relaxed">
@@ -406,7 +410,7 @@ export const ServiceOrderModal: React.FC<ServiceOrderModalProps> = ({
                 </div>
 
                 <div className="flex items-start gap-3">
-                  <span className="w-6 h-6 rounded-lg bg-emerald-500/15 text-emerald-400 text-xs font-mono font-bold flex items-center justify-center border border-emerald-500/25 shrink-0 mt-0.5">
+                  <span className="w-6 h-6 rounded-lg bg-emerald-500/15 text-emerald-400 text-xs font-payment-digits font-bold flex items-center justify-center border border-emerald-500/25 shrink-0 mt-0.5">
                     3
                   </span>
                   <span className="text-xs sm:text-sm font-medium font-cairo text-slate-300 leading-relaxed">

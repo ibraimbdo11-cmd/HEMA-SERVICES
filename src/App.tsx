@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Header } from './components/Header';
@@ -8,7 +8,6 @@ import { ServiceDetailsPage } from './pages/ServiceDetailsPage';
 import { CheckoutPage } from './pages/CheckoutPage';
 import { OrdersPage } from './pages/OrdersPage';
 import { AboutPage } from './pages/AboutPage';
-import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { AuthModal } from './components/AuthModal';
 import { AuthGatePage } from './pages/AuthGatePage';
 import { ChatModal } from './components/ChatModal';
@@ -16,6 +15,11 @@ import { ServiceOrderModal } from './components/ServiceOrderModal';
 import { CustomerSupportFloatingButton } from './components/CustomerSupportFloatingButton';
 import { ServiceItem } from './types';
 import { api } from './lib/api';
+
+// Code-splitting for heavy admin dashboard
+const AdminDashboard = lazy(() =>
+  import('./pages/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard }))
+);
 
 function MainApp() {
   const { currentUser, isAdmin, loading: authLoading } = useAuth();
@@ -42,10 +46,54 @@ function MainApp() {
 
   // Chat / Customer Support Modal State
   const [chatOpen, setChatOpen] = useState(false);
+  const [unreadSupportCount, setUnreadSupportCount] = useState(0);
   const [chatOrderContext, setChatOrderContext] = useState<{
     orderId?: string;
     orderNumber?: string;
   }>({});
+
+  // Realtime subscription & sync for support messages unread count
+  useEffect(() => {
+    if (!currentUser) {
+      setUnreadSupportCount(0);
+      return;
+    }
+
+    let isMounted = true;
+    const fetchUnreadSupport = async () => {
+      try {
+        const convs = await api.getConversations();
+        if (!isMounted) return;
+        const totalUnread = convs.reduce((sum, c) => sum + (c.unreadByUser || 0), 0);
+        setUnreadSupportCount(totalUnread);
+      } catch {
+        // ignore
+      }
+    };
+
+    fetchUnreadSupport();
+
+    // Realtime SSE listener for instant notifications
+    const unsub = api.subscribeChat({
+      userId: currentUser.uid,
+      role: 'user',
+      onMessage: (msg) => {
+        if (msg.senderRole === 'admin') {
+          setUnreadSupportCount((prev) => prev + 1);
+        }
+      },
+      onMessagesRead: () => {
+        fetchUnreadSupport();
+      },
+    });
+
+    const timer = setInterval(fetchUnreadSupport, 15000);
+    return () => {
+      isMounted = false;
+      clearInterval(timer);
+      unsub();
+    };
+  }, [currentUser]);
 
   // Fetch services from API
   const fetchServices = async () => {
@@ -92,6 +140,7 @@ function MainApp() {
       setAuthModalOpen(true);
       return;
     }
+    setUnreadSupportCount(0);
     setChatOrderContext({ orderId, orderNumber });
     setChatOpen(true);
   };
@@ -134,7 +183,18 @@ function MainApp() {
     <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col selection:bg-emerald-500 selection:text-slate-950">
       {/* If in admin view, render Admin Workspace directly */}
       {currentView === 'admin' ? (
-        <AdminDashboard onBackToHome={() => setCurrentView('home')} />
+        <Suspense
+          fallback={
+            <div className="min-h-screen bg-[#07090e] flex flex-col items-center justify-center text-center p-6">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mb-3 animate-spin">
+                <div className="w-3 h-3 rounded-full bg-emerald-400" />
+              </div>
+              <p className="text-xs text-slate-400 font-cairo">جاري تحميل لوحة التحكم...</p>
+            </div>
+          }
+        >
+          <AdminDashboard onBackToHome={() => setCurrentView('home')} />
+        </Suspense>
       ) : (
         <>
           {/* Header */}
@@ -242,7 +302,10 @@ function MainApp() {
           </main>
 
           {/* Floating Customer Support Button */}
-          <CustomerSupportFloatingButton onClick={() => handleOpenSupport()} />
+          <CustomerSupportFloatingButton
+            onClick={() => handleOpenSupport()}
+            unreadCount={unreadSupportCount}
+          />
 
           {/* Global Footer */}
           <Footer

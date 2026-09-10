@@ -132,17 +132,17 @@ export const TopMenu: React.FC<TopMenuProps> = ({
                     id={`drawer-nav-item-${item.id}`}
                     type="button"
                     onClick={() => handleItemClick(item.id)}
-                    className={`w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl text-right transition-all duration-150 group cursor-pointer active:scale-[0.98] ${
+                    className={`w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl text-right transition-all duration-150 group cursor-pointer select-none active:scale-[0.98] ${
                       isActive
                         ? 'bg-emerald-500 text-slate-950 font-bold shadow-md shadow-emerald-500/25'
-                        : 'bg-transparent text-slate-100 hover:bg-emerald-500 hover:text-slate-950 font-bold'
+                        : 'bg-transparent text-slate-100 hover:bg-emerald-500 hover:text-slate-950 active:bg-emerald-500 active:text-slate-950 font-bold'
                     }`}
                   >
                     <div
                       className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors duration-150 ${
                         isActive
                           ? 'bg-slate-950/15 text-slate-950'
-                          : 'bg-white/[0.05] text-emerald-400 group-hover:bg-slate-950/15 group-hover:text-slate-950'
+                          : 'bg-white/[0.05] text-emerald-400 group-hover:bg-slate-950/15 group-hover:text-slate-950 group-active:bg-slate-950/15 group-active:text-slate-950'
                       }`}
                     >
                       <Icon className="w-5 h-5" />

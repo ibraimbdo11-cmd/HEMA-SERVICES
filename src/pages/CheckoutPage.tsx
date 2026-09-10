@@ -87,8 +87,12 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
       return;
     }
 
+    if (proofPreview) {
+      URL.revokeObjectURL(proofPreview);
+    }
     setProofFile(file);
-    setProofPreview(URL.createObjectURL(file));
+    const newPreviewUrl = URL.createObjectURL(file);
+    setProofPreview(newPreviewUrl);
     setValidationError(null);
 
     try {
@@ -264,7 +268,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                 </span>
               ) : (
                 <>
-                  <span className="text-2xl sm:text-3xl font-black text-emerald-400 tracking-tight font-latin">
+                  <span className="text-2xl sm:text-3xl font-extrabold text-emerald-400 tracking-tight font-payment-digits">
                     {finalPrice.toLocaleString()}
                   </span>
                   <span className="text-sm font-medium text-emerald-300/80 font-cairo">
@@ -276,11 +280,11 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
 
             {service.isDiscounted && !isBudgetPricing && (
               <div className="flex items-center justify-center gap-2 pt-0.5">
-                <span className="text-xs text-slate-500 line-through font-mono">
+                <span className="text-xs text-slate-500 line-through font-payment-digits">
                   {service.basePrice.toLocaleString()} ج.م
                 </span>
                 <span className="text-[11px] font-medium text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                  وفرت {discountAmount.toLocaleString()} ج.م
+                  وفرت <span className="font-payment-digits font-bold">{discountAmount.toLocaleString()}</span> ج.م
                 </span>
               </div>
             )}
@@ -302,7 +306,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
             </div>
 
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 rounded-xl bg-[#080b11] border border-white/[0.06]">
-              <span className="font-mono text-xl sm:text-2xl font-bold text-slate-100 tracking-[0.16em] select-all dir-ltr text-center sm:text-left py-0.5">
+              <span className="font-payment-digits text-xl sm:text-2xl font-bold text-slate-100 tracking-[0.14em] select-all dir-ltr text-center sm:text-left py-0.5">
                 {walletNumber}
               </span>
 

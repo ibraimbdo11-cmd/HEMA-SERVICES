@@ -18,19 +18,22 @@ export const AudioMessagePlayer: React.FC<AudioMessagePlayerProps> = ({
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const formatTime = (secs: number) => {
-    if (isNaN(secs) || secs < 0) return '0:00';
+    if (isNaN(secs) || !isFinite(secs) || secs < 0) return '0:00';
     const m = Math.floor(secs / 60);
     const s = Math.floor(secs % 60);
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
+  // Sync duration and events
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    const handleLoadedMetadata = () => {
-      if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration)) {
-        setDuration(Math.round(audio.duration));
+    const syncDuration = () => {
+      if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration) && audio.duration > 0) {
+        setDuration(audio.duration);
+      } else if (initialDuration && initialDuration > 0) {
+        setDuration(initialDuration);
       }
     };
 
@@ -43,16 +46,59 @@ export const AudioMessagePlayer: React.FC<AudioMessagePlayerProps> = ({
       setCurrentTime(0);
     };
 
-    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    const handlePause = () => {
+      setIsPlaying(false);
+      setCurrentTime(audio.currentTime);
+    };
+
+    const handlePlay = () => {
+      setIsPlaying(true);
+      syncDuration();
+    };
+
+    audio.addEventListener('loadedmetadata', syncDuration);
+    audio.addEventListener('durationchange', syncDuration);
+    audio.addEventListener('canplaythrough', syncDuration);
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('pause', handlePause);
+    audio.addEventListener('play', handlePlay);
 
     return () => {
-      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('loadedmetadata', syncDuration);
+      audio.removeEventListener('durationchange', syncDuration);
+      audio.removeEventListener('canplaythrough', syncDuration);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('play', handlePlay);
     };
-  }, [src]);
+  }, [src, initialDuration]);
+
+  // Silky 60fps playback synchronization via requestAnimationFrame
+  useEffect(() => {
+    let animId: number;
+    if (isPlaying && audioRef.current) {
+      const updateFrame = () => {
+        if (audioRef.current) {
+          setCurrentTime(audioRef.current.currentTime);
+          if (
+            audioRef.current.duration &&
+            isFinite(audioRef.current.duration) &&
+            audioRef.current.duration > 0
+          ) {
+            setDuration(audioRef.current.duration);
+          }
+        }
+        animId = requestAnimationFrame(updateFrame);
+      };
+      animId = requestAnimationFrame(updateFrame);
+    }
+
+    return () => {
+      if (animId) cancelAnimationFrame(animId);
+    };
+  }, [isPlaying]);
 
   const togglePlay = () => {
     const audio = audioRef.current;
@@ -60,7 +106,6 @@ export const AudioMessagePlayer: React.FC<AudioMessagePlayerProps> = ({
 
     if (isPlaying) {
       audio.pause();
-      setIsPlaying(false);
     } else {
       audio
         .play()
@@ -77,7 +122,8 @@ export const AudioMessagePlayer: React.FC<AudioMessagePlayerProps> = ({
     setCurrentTime(val);
   };
 
-  const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const effectiveDuration = duration > 0 ? duration : (initialDuration || 1);
+  const progressPercent = Math.min(100, Math.max(0, (currentTime / effectiveDuration) * 100));
 
   return (
     <div
@@ -114,7 +160,8 @@ export const AudioMessagePlayer: React.FC<AudioMessagePlayerProps> = ({
           <input
             type="range"
             min={0}
-            max={duration || 100}
+            max={effectiveDuration}
+            step={0.02}
             value={currentTime}
             onChange={handleSeek}
             className="w-full h-1.5 bg-slate-700/60 rounded-lg appearance-none cursor-pointer accent-emerald-400 transition-all"
@@ -124,11 +171,11 @@ export const AudioMessagePlayer: React.FC<AudioMessagePlayerProps> = ({
           />
         </div>
 
-        <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 px-0.5">
+        <div className="flex items-center justify-between text-[10px] font-payment-digits text-slate-400 px-0.5">
           <span>{formatTime(currentTime)}</span>
           <div className="flex items-center gap-1">
             <Volume2 className="w-2.5 h-2.5 opacity-60" />
-            <span>{formatTime(duration)}</span>
+            <span>{formatTime(effectiveDuration)}</span>
           </div>
         </div>
       </div>

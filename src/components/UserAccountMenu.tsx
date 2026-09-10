@@ -20,6 +20,7 @@ export const UserAccountMenu: React.FC<UserAccountMenuProps> = ({
   onOpenNotifications,
 }) => {
   const { currentUser, profile, isAdmin, logout } = useAuth();
+  const [isLoggingOut, setIsLoggingOut] = React.useState(false);
 
   if (!isOpen) return null;
 
@@ -30,6 +31,18 @@ export const UserAccountMenu: React.FC<UserAccountMenuProps> = ({
   const handleAction = (action: () => void) => {
     action();
     onClose();
+  };
+
+  const handleLogout = async () => {
+    try {
+      setIsLoggingOut(true);
+      onClose();
+      await logout();
+    } catch (err) {
+      console.error('Logout error:', err);
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   return (
@@ -74,7 +87,7 @@ export const UserAccountMenu: React.FC<UserAccountMenuProps> = ({
               <button
                 id="menu-item-admin"
                 onClick={() => handleAction(() => onNavigate('admin'))}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-amber-400 hover:bg-amber-500/10 transition-colors"
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-amber-400 hover:bg-amber-500/10 active:bg-amber-500/20 active:scale-[0.99] transition-all cursor-pointer select-none"
               >
                 <Shield className="w-4 h-4" />
                 <span>لوحة التحكم الإدارية</span>
@@ -84,7 +97,7 @@ export const UserAccountMenu: React.FC<UserAccountMenuProps> = ({
             <button
               id="menu-item-orders"
               onClick={() => handleAction(() => onNavigate('orders'))}
-              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/50 transition-colors"
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 active:bg-emerald-500/20 active:text-emerald-300 active:scale-[0.99] transition-all cursor-pointer select-none"
             >
               <Package className="w-4 h-4 text-emerald-400" />
               <span>الطلبات</span>
@@ -93,7 +106,7 @@ export const UserAccountMenu: React.FC<UserAccountMenuProps> = ({
             <button
               id="menu-item-notifications"
               onClick={() => handleAction(onOpenNotifications)}
-              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/50 transition-colors"
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 active:bg-emerald-500/20 active:text-emerald-300 active:scale-[0.99] transition-all cursor-pointer select-none"
             >
               <Bell className="w-4 h-4 text-emerald-400" />
               <span>الإشعارات</span>
@@ -102,7 +115,7 @@ export const UserAccountMenu: React.FC<UserAccountMenuProps> = ({
             <button
               id="menu-item-support"
               onClick={() => handleAction(onOpenSupport)}
-              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800/50 transition-colors"
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 active:bg-emerald-500/20 active:text-emerald-300 active:scale-[0.99] transition-all cursor-pointer select-none"
             >
               <Headset className="w-4 h-4 text-emerald-400" />
               <span>خدمة العملاء</span>
@@ -113,11 +126,12 @@ export const UserAccountMenu: React.FC<UserAccountMenuProps> = ({
           <div className="p-2 border-t border-slate-800/80">
             <button
               id="menu-item-logout"
-              onClick={() => handleAction(logout)}
-              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-red-400 hover:bg-red-500/10 transition-colors"
+              disabled={isLoggingOut}
+              onClick={handleLogout}
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-red-400 hover:bg-red-500/10 active:bg-red-500/20 active:scale-[0.99] transition-all cursor-pointer select-none disabled:opacity-50"
             >
               <LogOut className="w-4 h-4" />
-              <span>تسجيل الخروج</span>
+              <span>{isLoggingOut ? 'جاري الخروج...' : 'تسجيل الخروج'}</span>
             </button>
           </div>
         </>

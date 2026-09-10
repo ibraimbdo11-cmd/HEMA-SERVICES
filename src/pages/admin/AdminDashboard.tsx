@@ -49,6 +49,7 @@ import {
   Image as ImageIcon,
   Download,
   Ban,
+  Reply,
 } from 'lucide-react';
 import { AudioMessagePlayer } from '../../components/ui/AudioMessagePlayer';
 
@@ -109,6 +110,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
   const audioChunksRef = React.useRef<Blob[]>([]);
   const timerRef = React.useRef<any>(null);
   const chatFileRef = React.useRef<HTMLInputElement>(null);
+
+  // Realtime typing, reply and edit for Admin
+  const [isClientTyping, setIsClientTyping] = useState(false);
+  const clientTypingTimerRef = React.useRef<any>(null);
+  const adminTypingTimerRef = React.useRef<any>(null);
+  const [adminReplyingTo, setAdminReplyingTo] = useState<MessageItem | null>(null);
+  const [adminEditingMsg, setAdminEditingMsg] = useState<MessageItem | null>(null);
+  const [adminEditText, setAdminEditText] = useState('');
+  const [savingAdminEdit, setSavingAdminEdit] = useState(false);
 
   // Format seconds to mm:ss
   const formatAudioDuration = (totalSeconds: number) => {
@@ -218,25 +228,73 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
     if (activeTab === 'settings') loadSettings();
   }, [activeTab, isAdmin]);
 
-  // Load messages when activeConversation changes
+  // Load messages and subscribe to Realtime SSE & presence heartbeat
   useEffect(() => {
-    if (!activeConversation) return;
+    if (!isAdmin || !currentUser) return;
     let isMounted = true;
-    const fetchMsgs = async () => {
-      try {
-        const msgs = await api.getMessages(activeConversation.id);
-        if (isMounted) setActiveMessages(msgs);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    fetchMsgs();
-    const interval = setInterval(fetchMsgs, 5000);
+
+    // Send admin presence heartbeat
+    api.sendPresenceHeartbeat(currentUser.uid, 'admin').catch(() => {});
+    const heartbeat = setInterval(() => {
+      api.sendPresenceHeartbeat(currentUser.uid, 'admin').catch(() => {});
+    }, 20000);
+
+    const unsub = api.subscribeChat({
+      userId: currentUser.uid,
+      role: 'admin',
+      conversationId: activeConversation?.id,
+      onMessage: (msg) => {
+        if (!isMounted) return;
+        if (activeConversation && msg.conversationId === activeConversation.id) {
+          setActiveMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+          api.markConversationRead(activeConversation.id).catch(() => {});
+        }
+        loadConversations();
+      },
+      onMessageUpdated: (updatedMsg) => {
+        if (!isMounted) return;
+        setActiveMessages((prev) => prev.map((m) => (m.id === updatedMsg.id ? updatedMsg : m)));
+        loadConversations();
+      },
+      onMessagesRead: (readData) => {
+        if (!isMounted) return;
+        if (activeConversation && readData.conversationId === activeConversation.id) {
+          setActiveMessages((prev) =>
+            prev.map((m) => (m.senderRole === 'admin' && !m.readAt ? { ...m, readAt: readData.readAt } : m))
+          );
+        }
+      },
+      onTyping: (data) => {
+        if (!isMounted) return;
+        if (activeConversation && data.conversationId === activeConversation.id && data.userId !== currentUser.uid) {
+          setIsClientTyping(data.isTyping);
+          if (clientTypingTimerRef.current) clearTimeout(clientTypingTimerRef.current);
+          if (data.isTyping) {
+            clientTypingTimerRef.current = setTimeout(() => {
+              if (isMounted) setIsClientTyping(false);
+            }, 3500);
+          }
+        }
+      },
+    });
+
+    if (activeConversation) {
+      api.getMessages(activeConversation.id).then((msgs) => {
+        if (isMounted) {
+          setActiveMessages(msgs);
+          api.markConversationRead(activeConversation.id).catch(() => {});
+        }
+      }).catch(console.error);
+    }
+
     return () => {
       isMounted = false;
-      clearInterval(interval);
+      clearInterval(heartbeat);
+      unsub();
+      if (clientTypingTimerRef.current) clearTimeout(clientTypingTimerRef.current);
+      if (adminTypingTimerRef.current) clearTimeout(adminTypingTimerRef.current);
     };
-  }, [activeConversation]);
+  }, [activeConversation, isAdmin, currentUser]);
 
   const formatFileSize = (bytes?: number) => {
     if (!bytes || bytes <= 0) return '';
@@ -367,14 +425,56 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
     }
   };
 
+  // Handle Admin typing in chat
+  const handleAdminChatInputChange = (val: string) => {
+    setChatInput(val);
+    if (activeConversation && currentUser) {
+      api.sendTyping(activeConversation.id, true, {
+        userId: currentUser.uid,
+        userName: 'إدارة HEMA SERVICES',
+        role: 'admin',
+      }).catch(() => {});
+
+      if (adminTypingTimerRef.current) clearTimeout(adminTypingTimerRef.current);
+      adminTypingTimerRef.current = setTimeout(() => {
+        if (activeConversation && currentUser) {
+          api.sendTyping(activeConversation.id, false, {
+            userId: currentUser.uid,
+            userName: 'إدارة HEMA SERVICES',
+            role: 'admin',
+          }).catch(() => {});
+        }
+      }, 2500);
+    }
+  };
+
   // Send Admin Chat Message
   const handleSendAdminMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!chatInput.trim() || !activeConversation || !currentUser || sendingMsg) return;
 
     const textToSend = chatInput.trim();
+    const replyRef = adminReplyingTo
+      ? {
+          id: adminReplyingTo.id,
+          senderName: adminReplyingTo.senderName,
+          type: adminReplyingTo.type,
+          text: adminReplyingTo.text,
+          fileName: adminReplyingTo.fileName,
+          isImage: adminReplyingTo.isImage,
+        }
+      : undefined;
+
     setChatInput('');
+    setAdminReplyingTo(null);
     setSendingMsg(true);
+
+    if (adminTypingTimerRef.current) clearTimeout(adminTypingTimerRef.current);
+    api.sendTyping(activeConversation.id, false, {
+      userId: currentUser.uid,
+      userName: 'إدارة HEMA SERVICES',
+      role: 'admin',
+    }).catch(() => {});
 
     try {
       const msg = await api.sendMessage(activeConversation.id, {
@@ -383,13 +483,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
         senderRole: 'admin',
         type: 'text',
         text: textToSend,
+        replyTo: replyRef,
       });
-      setActiveMessages((prev) => [...prev, msg]);
+      setActiveMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
       loadConversations();
     } catch (err) {
       console.error(err);
     } finally {
       setSendingMsg(false);
+    }
+  };
+
+  // Save Admin Message Edit
+  const handleSaveAdminEdit = async () => {
+    if (!activeConversation || !adminEditingMsg || !adminEditText.trim() || savingAdminEdit) return;
+    try {
+      setSavingAdminEdit(true);
+      const updated = await api.editMessage(activeConversation.id, adminEditingMsg.id, adminEditText.trim());
+      setActiveMessages((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
+      setAdminEditingMsg(null);
+      setAdminEditText('');
+    } catch (err: any) {
+      alert(err.message || 'فشل في تعديل الرسالة');
+    } finally {
+      setSavingAdminEdit(false);
     }
   };
 
@@ -1287,18 +1404,43 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                             </span>
 
                             <div className="flex items-center gap-1.5 max-w-[85%]">
-                              {/* Delete message button (only when not already deleted) */}
+                              {/* Message actions (reply, edit, delete) */}
                               {!isDeleted && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteAdminMessage(msg.id)}
-                                  title="حذف الرسالة"
-                                  className={`opacity-60 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity p-1.5 rounded-lg hover:bg-red-500/20 text-slate-500 hover:text-red-400 shrink-0 ${
+                                <div
+                                  className={`flex items-center gap-0.5 opacity-60 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0 ${
                                     isFromAdmin ? 'order-first' : 'order-last'
                                   }`}
                                 >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setAdminReplyingTo(msg)}
+                                    title="رد على الرسالة"
+                                    className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-500 hover:text-emerald-400 transition-colors"
+                                  >
+                                    <Reply className="w-3.5 h-3.5" />
+                                  </button>
+                                  {isFromAdmin && msg.type === 'text' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setAdminEditingMsg(msg);
+                                        setAdminEditText(msg.text || '');
+                                      }}
+                                      title="تعديل الرسالة"
+                                      className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-500 hover:text-emerald-400 transition-colors"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteAdminMessage(msg.id)}
+                                    title="حذف الرسالة"
+                                    className="p-1.5 rounded-lg hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-colors"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
                               )}
 
                               {isDeleted ? (
@@ -1314,8 +1456,43 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                                       : 'bg-slate-900 text-slate-200 border border-slate-800 rounded-tr-sm'
                                   }`}
                                 >
+                                  {/* Quoted reply snippet */}
+                                  {msg.replyTo && (
+                                    <div
+                                      className={`mb-2 p-2 rounded-lg text-[11px] border-r-2 ${
+                                        isFromAdmin
+                                          ? 'bg-black/10 border-slate-900 text-slate-900'
+                                          : 'bg-black/30 border-emerald-500 text-slate-300'
+                                      }`}
+                                    >
+                                      <div className="font-bold flex items-center gap-1 opacity-90">
+                                        <Reply className="w-3 h-3" />
+                                        <span>{msg.replyTo.senderName}</span>
+                                      </div>
+                                      <div className="truncate opacity-80 mt-0.5">
+                                        {msg.replyTo.type === 'text' && (msg.replyTo.text || '')}
+                                        {msg.replyTo.type === 'image' && '📷 صورة'}
+                                        {msg.replyTo.type === 'audio' && '🎤 رسالة صوتية'}
+                                        {msg.replyTo.type === 'file' && `📎 ${msg.replyTo.fileName || 'ملف مرفق'}`}
+                                      </div>
+                                    </div>
+                                  )}
+
                                   {/* Text */}
-                                  {msg.type === 'text' && <p className="whitespace-pre-wrap">{msg.text}</p>}
+                                  {msg.type === 'text' && (
+                                    <div>
+                                      <p className="whitespace-pre-wrap">{msg.text}</p>
+                                      {msg.isEdited && (
+                                        <span
+                                          className={`text-[9px] block mt-1 opacity-70 ${
+                                            isFromAdmin ? 'text-slate-900 font-bold' : 'text-slate-400'
+                                          }`}
+                                        >
+                                          (تم التعديل)
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
 
                                   {/* Image message with preview and download button */}
                                   {(msg.type === 'image' || msg.isImage) && msg.fileUrl && (
@@ -1399,15 +1576,38 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                               )}
                             </div>
 
-                            <span className="text-[9px] text-slate-600 px-1 mt-1 font-mono">
-                              {new Date(msg.createdAt).toLocaleTimeString('ar-EG', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </span>
+                            <div className="flex items-center gap-1.5 px-1 mt-1 font-mono">
+                              <span className="text-[9px] text-slate-500 font-payment-digits">
+                                {new Date(msg.createdAt).toLocaleTimeString('ar-EG', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </span>
+                              {isFromAdmin && !isDeleted && (
+                                <span
+                                  className={`inline-flex items-center text-[11px] font-bold transition-colors ${
+                                    msg.readAt ? 'text-emerald-400' : 'text-slate-500'
+                                  }`}
+                                  title={msg.readAt ? `تمت القراءة: ${new Date(msg.readAt).toLocaleTimeString('ar-EG')}` : 'تم الإرسال'}
+                                >
+                                  {msg.readAt ? '✓✓' : '✓'}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         );
                       })}
+                      {/* Client typing indicator */}
+                      {isClientTyping && (
+                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-slate-400 text-xs w-fit animate-pulse">
+                          <span className="flex gap-1 items-center">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce"></span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce delay-100"></span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce delay-200"></span>
+                          </span>
+                          <span>{activeConversation.userName} يكتب الآن...</span>
+                        </div>
+                      )}
                       <div ref={adminMessagesEndRef} />
                     </div>
 
@@ -1418,6 +1618,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                         <div className="mb-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs flex items-center gap-2">
                           <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
                           <span className="font-semibold">{adminChatUploadStatus}</span>
+                        </div>
+                      )}
+
+                      {/* Replying banner */}
+                      {adminReplyingTo && (
+                        <div className="mb-2 p-2 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Reply className="w-4 h-4 text-emerald-400 shrink-0" />
+                            <div className="min-w-0">
+                              <p className="font-bold text-slate-200 text-[11px] truncate">
+                                الرد على: {adminReplyingTo.senderName}
+                              </p>
+                              <p className="text-slate-400 text-[10px] truncate">
+                                {adminReplyingTo.type === 'text' && (adminReplyingTo.text || '')}
+                                {adminReplyingTo.type === 'image' && '📷 صورة'}
+                                {adminReplyingTo.type === 'audio' && '🎤 رسالة صوتية'}
+                                {adminReplyingTo.type === 'file' && `📎 ${adminReplyingTo.fileName || 'ملف مرفق'}`}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setAdminReplyingTo(null)}
+                            className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       )}
 
@@ -1465,7 +1692,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                           <input
                             type="text"
                             value={chatInput}
-                            onChange={(e) => setChatInput(e.target.value)}
+                            onChange={(e) => handleAdminChatInputChange(e.target.value)}
                             placeholder="اكتب ردك للعميل..."
                             disabled={sendingMsg}
                             className="flex-1 min-w-0 h-9 sm:h-10 bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-lg px-3 text-xs text-slate-100 placeholder-slate-500 outline-none"
@@ -1486,6 +1713,57 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                         </form>
                       )}
                     </div>
+
+                    {/* Admin Message Edit Modal */}
+                    {adminEditingMsg && (
+                      <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+                        <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-5 space-y-4 shadow-2xl">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-bold text-slate-100 text-sm flex items-center gap-2">
+                              <Pencil className="w-4 h-4 text-emerald-400" />
+                              تعديل الرسالة
+                            </h4>
+                            <button
+                              onClick={() => {
+                                setAdminEditingMsg(null);
+                                setAdminEditText('');
+                              }}
+                              className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <textarea
+                            value={adminEditText}
+                            onChange={(e) => setAdminEditText(e.target.value)}
+                            className="w-full h-28 bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-100 outline-none focus:border-emerald-500 resize-none"
+                            placeholder="نص الرسالة المعدل..."
+                          />
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAdminEditingMsg(null);
+                                setAdminEditText('');
+                              }}
+                              disabled={savingAdminEdit}
+                              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+                            >
+                              إلغاء
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleSaveAdminEdit}
+                              disabled={!adminEditText.trim() || savingAdminEdit}
+                              className="px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold flex items-center gap-1.5"
+                            >
+                              {savingAdminEdit && <Loader2 className="w-3 h-3 animate-spin" />}
+                              حفظ التعديل
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className="flex-1 flex items-center justify-center text-xs text-slate-500">

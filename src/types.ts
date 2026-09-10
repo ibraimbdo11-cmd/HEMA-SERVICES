@@ -73,6 +73,15 @@ export interface Conversation {
   updatedAt: string;
 }
 
+export interface MessageReplyReference {
+  id: string;
+  senderName: string;
+  type: 'text' | 'file' | 'audio' | 'image';
+  text?: string;
+  fileName?: string;
+  isImage?: boolean;
+}
+
 export interface MessageItem {
   id: string;
   conversationId: string;
@@ -88,8 +97,18 @@ export interface MessageItem {
   audioUrl?: string;
   audioDuration?: number;
   isDeleted?: boolean;
+  isEdited?: boolean;
+  editedAt?: string;
+  replyTo?: MessageReplyReference;
   createdAt: string;
   readAt?: string;
+}
+
+export interface UserPresence {
+  userId: string;
+  role: 'admin' | 'user';
+  isOnline: boolean;
+  lastSeenAt: string;
 }
 
 export interface NotificationItem {

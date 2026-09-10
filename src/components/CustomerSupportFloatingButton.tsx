@@ -23,10 +23,21 @@ export const CustomerSupportFloatingButton: React.FC<CustomerSupportFloatingButt
 
         {unreadCount > 0 && (
           <span
-            id="floating-support-unread-badge"
-            className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white font-bold text-[10px] rounded-full flex items-center justify-center border-2 border-[#080b11]"
+            id="floating-support-unread-dot"
+            className="absolute -top-1 -right-1 flex items-center justify-center z-10"
+            title={`${unreadCount} رسائل غير مقروءة`}
           >
-            {unreadCount > 9 ? '9+' : unreadCount}
+            {unreadCount > 1 ? (
+              <span className="inline-flex items-center gap-1 h-5 min-w-[20px] px-1.5 rounded-full bg-emerald-400 text-slate-950 text-[10px] font-black font-payment-digits shadow-md border-2 border-[#07090e] leading-none">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-950 animate-pulse" />
+                <span>{unreadCount > 99 ? '99+' : unreadCount}</span>
+              </span>
+            ) : (
+              <span className="relative flex h-3.5 w-3.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-400 border-2 border-[#07090e] shadow-sm shadow-emerald-400/50"></span>
+              </span>
+            )}
           </span>
         )}
 
