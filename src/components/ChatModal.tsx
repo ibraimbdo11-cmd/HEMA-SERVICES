@@ -28,6 +28,7 @@ import {
 interface ChatModalProps {
   isOpen: boolean;
   onClose: () => void;
+  conversationId?: string;
   orderId?: string;
   orderNumber?: string;
 }
@@ -35,6 +36,7 @@ interface ChatModalProps {
 export const ChatModal: React.FC<ChatModalProps> = ({
   isOpen,
   onClose,
+  conversationId,
   orderId,
   orderNumber,
 }) => {
@@ -46,6 +48,16 @@ export const ChatModal: React.FC<ChatModalProps> = ({
   const [sending, setSending] = useState(false);
   const [uploadStatusText, setUploadStatusText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const markReadTimerRef = useRef<any>(null);
+
+  const scheduleMarkAsRead = (convId: string, delay = 800) => {
+    if (markReadTimerRef.current) clearTimeout(markReadTimerRef.current);
+    markReadTimerRef.current = setTimeout(() => {
+      if (isOpen && !document.hidden) {
+        api.markConversationRead(convId).catch(() => {});
+      }
+    }, delay);
+  };
 
   // Active Order Context inside customer canonical conversation
   const [activeOrderContext, setActiveOrderContext] = useState<{
@@ -150,12 +162,26 @@ export const ChatModal: React.FC<ChatModalProps> = ({
         setLoading(true);
         setError(null);
 
-        const conv = await api.findOrCreateConversation({
-          userId: currentUser.uid,
-          userName: profile?.name || currentUser.displayName || 'العميل',
-          userEmail: currentUser.email || '',
-          orderId: activeOrderContext.orderId || orderId,
-        });
+        let conv: Conversation;
+        if (conversationId) {
+          try {
+            conv = await api.getConversation(conversationId);
+          } catch {
+            conv = await api.findOrCreateConversation({
+              userId: currentUser.uid,
+              userName: profile?.name || currentUser.displayName || 'العميل',
+              userEmail: currentUser.email || '',
+              orderId: activeOrderContext.orderId || orderId,
+            });
+          }
+        } else {
+          conv = await api.findOrCreateConversation({
+            userId: currentUser.uid,
+            userName: profile?.name || currentUser.displayName || 'العميل',
+            userEmail: currentUser.email || '',
+            orderId: activeOrderContext.orderId || orderId,
+          });
+        }
 
         if (!isMounted) return;
         setConversation(conv);
@@ -165,7 +191,10 @@ export const ChatModal: React.FC<ChatModalProps> = ({
         if (isMounted) {
           setMessages(msgs);
           setTimeout(scrollToBottom, 100);
-          api.markConversationRead(conv.id).catch(() => {});
+          const hasUnread = msgs.some((m) => m.senderRole === 'admin' && !m.readAt);
+          if (hasUnread && isOpen && !document.hidden) {
+            scheduleMarkAsRead(conv.id, 800);
+          }
         }
 
         // Fetch initial admin status
@@ -192,7 +221,9 @@ export const ChatModal: React.FC<ChatModalProps> = ({
             });
             setTimeout(scrollToBottom, 50);
             if (newMsg.senderRole === 'admin') {
-              api.markConversationRead(conv.id).catch(() => {});
+              if (isOpen && !document.hidden) {
+                scheduleMarkAsRead(conv.id, 1200);
+              }
             }
           },
           onMessageUpdated: (updatedMsg, eventConvId) => {
@@ -278,8 +309,26 @@ export const ChatModal: React.FC<ChatModalProps> = ({
       if (heartbeatTimer) clearInterval(heartbeatTimer);
       if (adminTypingTimerRef.current) clearTimeout(adminTypingTimerRef.current);
       if (userTypingTimerRef.current) clearTimeout(userTypingTimerRef.current);
+      if (markReadTimerRef.current) clearTimeout(markReadTimerRef.current);
     };
-  }, [isOpen, currentUser, orderId]);
+  }, [isOpen, currentUser, conversationId, orderId]);
+
+  // Handle document visibility change to mark unread messages read only when user actually views
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (isOpen && !document.hidden && conversation) {
+        const hasUnread = messages.some((m) => m.senderRole === 'admin' && !m.readAt);
+        if (hasUnread) {
+          scheduleMarkAsRead(conversation.id, 600);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      if (markReadTimerRef.current) clearTimeout(markReadTimerRef.current);
+    };
+  }, [isOpen, conversation, messages]);
 
   // Clean up staged attachment URL when changing or unmounting
   useEffect(() => {

@@ -798,16 +798,17 @@ app.post('/api/users/sync', requireAuth, (req, res) => {
     db.users.unshift(user);
 
     if (role !== 'admin') {
-      db.notifications.unshift({
+      const newUserNotif = {
         id: `notif-${Date.now()}`,
         userId: 'admin',
-        type: 'new_user',
+        type: 'new_user' as const,
         title: 'مستخدم جديد انضم للمنصة',
         body: `انضم المستخدم ${user.name} (${user.email}) إلى المنصة.`,
         isRead: false,
         createdAt: now,
-      });
-      sendRealtimeEvent('new_notification', { userId: 'admin' }, undefined, 'admin');
+      };
+      db.notifications.unshift(newUserNotif);
+      sendRealtimeEvent('new_notification', { userId: 'admin', notification: newUserNotif }, undefined, 'admin');
     }
   } else {
     user.name = userName || user.name;
@@ -1031,30 +1032,32 @@ app.post('/api/orders', requireAuth, (req, res) => {
   }
 
   // Admin Notification
-  db.notifications.unshift({
+  const adminOrderNotif = {
     id: `notif-${Date.now()}`,
     userId: 'admin',
-    type: 'new_order',
+    type: 'new_order' as const,
     title: 'طلب خدمة جديد',
     body: `قام العميل ${resolvedUserName} بطلب "${serviceTitle}" برقم طلب ${orderNumber}.`,
     relatedOrderId: newOrder.id,
     isRead: false,
     createdAt: new Date().toISOString(),
-  });
-  sendRealtimeEvent('new_notification', { userId: 'admin' }, undefined, 'admin');
+  };
+  db.notifications.unshift(adminOrderNotif);
+  sendRealtimeEvent('new_notification', { userId: 'admin', notification: adminOrderNotif }, undefined, 'admin');
 
   // Customer Notification
-  db.notifications.unshift({
+  const customerOrderNotif = {
     id: `notif-${Date.now() + 1}`,
     userId,
-    type: 'order_status',
+    type: 'order_status' as const,
     title: 'تم استلام طلبك بنجاح',
     body: `تم استلام طلبك برقم ${orderNumber} وهو قيد المراجعة حالياً من قبل الإدارة.`,
     relatedOrderId: newOrder.id,
     isRead: false,
     createdAt: new Date().toISOString(),
-  });
-  sendRealtimeEvent('new_notification', { userId }, undefined, userId);
+  };
+  db.notifications.unshift(customerOrderNotif);
+  sendRealtimeEvent('new_notification', { userId, notification: customerOrderNotif }, undefined, userId);
 
   // Associate order with customer's ONE canonical support conversation
   let canonicalConv = db.conversations.find((c) => c.userId === userId);
@@ -1155,17 +1158,18 @@ app.patch('/api/orders/:id/status', requireAdmin, (req, res) => {
       ? `تم تحديث حالة طلبك ${order.orderNumber} إلى مرفوض. السبب: ${rejectionReason}`
       : `تم تحديث حالة طلبك ${order.orderNumber} إلى "${statusNames[status]}".`;
 
-  db.notifications.unshift({
+  const orderStatusNotif = {
     id: `notif-${Date.now()}`,
     userId: order.userId,
-    type: 'order_status',
+    type: 'order_status' as const,
     title: notificationTitle,
     body: notificationBody,
     relatedOrderId: order.id,
     isRead: false,
     createdAt: new Date().toISOString(),
-  });
-  sendRealtimeEvent('new_notification', { userId: order.userId }, undefined, order.userId);
+  };
+  db.notifications.unshift(orderStatusNotif);
+  sendRealtimeEvent('new_notification', { userId: order.userId, notification: orderStatusNotif }, undefined, order.userId);
 
   writeDB(db);
   res.json(order);
@@ -1194,30 +1198,32 @@ app.post('/api/orders/:id/cancel', requireAuth, (req, res) => {
   order.updatedAt = new Date().toISOString();
 
   // Admin Notification
-  db.notifications.unshift({
+  const adminCancelNotif = {
     id: `notif-${Date.now()}`,
     userId: 'admin',
-    type: 'order_status',
+    type: 'order_status' as const,
     title: 'تم إلغاء طلب من قبل العميل',
     body: `قام العميل ${order.userName} بإلغاء الطلب رقم ${order.orderNumber}.`,
     relatedOrderId: order.id,
     isRead: false,
     createdAt: new Date().toISOString(),
-  });
-  sendRealtimeEvent('new_notification', { userId: 'admin' }, undefined, 'admin');
+  };
+  db.notifications.unshift(adminCancelNotif);
+  sendRealtimeEvent('new_notification', { userId: 'admin', notification: adminCancelNotif }, undefined, 'admin');
 
   // Customer Notification
-  db.notifications.unshift({
+  const customerCancelNotif = {
     id: `notif-${Date.now() + 1}`,
     userId: order.userId,
-    type: 'order_status',
+    type: 'order_status' as const,
     title: 'تم إلغاء الطلب بنجاح',
     body: `تم إلغاء طلبك رقم ${order.orderNumber} بنجاح.`,
     relatedOrderId: order.id,
     isRead: false,
     createdAt: new Date().toISOString(),
-  });
-  sendRealtimeEvent('new_notification', { userId: order.userId }, undefined, order.userId);
+  };
+  db.notifications.unshift(customerCancelNotif);
+  sendRealtimeEvent('new_notification', { userId: order.userId, notification: customerCancelNotif }, undefined, order.userId);
 
   writeDB(db);
   res.json({ success: true, order });

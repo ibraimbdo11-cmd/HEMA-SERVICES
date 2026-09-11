@@ -238,6 +238,13 @@ export const api = {
     return res.json();
   },
 
+  async getConversation(id: string): Promise<Conversation> {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`/api/conversations/${encodeURIComponent(id)}`, { headers });
+    if (!res.ok) throw new Error('فشل في جلب المحادثة');
+    return res.json();
+  },
+
   async findOrCreateConversation(data: {
     userId?: string;
     userName?: string;

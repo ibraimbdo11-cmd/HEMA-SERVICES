@@ -1,6 +1,7 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { NotificationProvider } from './context/NotificationContext';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { HomePage } from './pages/HomePage';
@@ -70,10 +71,9 @@ function MainApp() {
     let isMounted = true;
     const fetchUnreadSupport = async () => {
       try {
-        const convs = await api.getConversations();
+        const { unreadSupportCount } = await api.getUnreadSupportCount();
         if (!isMounted) return;
-        const totalUnread = convs.reduce((sum, c) => sum + (c.unreadByUser || 0), 0);
-        setUnreadSupportCount(totalUnread);
+        setUnreadSupportCount(unreadSupportCount || 0);
       } catch {
         // ignore
       }
@@ -87,10 +87,17 @@ function MainApp() {
       role: 'user',
       onMessage: (msg) => {
         if (msg.senderRole === 'admin') {
-          setUnreadSupportCount((prev) => prev + 1);
+          fetchUnreadSupport();
+        }
+      },
+      onConversationUnreadUpdated: (data) => {
+        if (!isMounted) return;
+        if (data.userId === currentUser.uid) {
+          setUnreadSupportCount(data.unreadByUser || 0);
         }
       },
       onMessagesRead: () => {
+        if (!isMounted) return;
         fetchUnreadSupport();
       },
     });
@@ -141,15 +148,18 @@ function MainApp() {
     setOrderModalOpen(true);
   };
 
-  // Open Chat with optional Order context
-  const handleOpenSupport = (orderId?: string, orderNumber?: string) => {
+  // Open Chat with optional conversation and order context
+  const handleOpenSupport = (
+    conversationId?: string,
+    orderId?: string,
+    orderNumber?: string
+  ) => {
     if (!currentUser) {
       setAuthInitialMode('login');
       setAuthModalOpen(true);
       return;
     }
-    setUnreadSupportCount(0);
-    setChatOrderContext({ orderId, orderNumber });
+    setChatOrderContext({ conversationId, orderId, orderNumber });
     setChatOpen(true);
   };
 
@@ -217,7 +227,14 @@ function MainApp() {
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
             onOpenAuth={handleOpenAuth}
-            onOpenSupport={() => handleOpenSupport()}
+            onOpenSupport={(conversationId, orderId, orderNumber) =>
+              handleOpenSupport(conversationId, orderId, orderNumber)
+            }
+            onSelectOrder={(orderId) => {
+              setSelectedOrderIdForDetails(orderId);
+              setCurrentView('orders');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
           />
 
           {/* Main Content Pages with smooth fade transitions */}
@@ -284,7 +301,7 @@ function MainApp() {
                 >
                   <OrdersPage
                     onOpenSupportForOrder={(orderId, orderNumber) =>
-                      handleOpenSupport(orderId, orderNumber)
+                      handleOpenSupport(undefined, orderId, orderNumber)
                     }
                     onExploreServices={() => setCurrentView('home')}
                     selectedOrderId={selectedOrderIdForDetails}
@@ -342,7 +359,7 @@ function MainApp() {
         }}
         onOpenSupportAfterOrder={(orderId, orderNumber) => {
           setOrderModalOpen(false);
-          handleOpenSupport(orderId, orderNumber);
+          handleOpenSupport(undefined, orderId, orderNumber);
         }}
         onOpenAuth={() => handleOpenAuth('login')}
       />
@@ -358,6 +375,7 @@ function MainApp() {
       <ChatModal
         isOpen={chatOpen}
         onClose={() => setChatOpen(false)}
+        conversationId={chatOrderContext.conversationId}
         orderId={chatOrderContext.orderId}
         orderNumber={chatOrderContext.orderNumber}
       />
@@ -368,7 +386,9 @@ function MainApp() {
 export default function App() {
   return (
     <AuthProvider>
-      <MainApp />
+      <NotificationProvider>
+        <MainApp />
+      </NotificationProvider>
     </AuthProvider>
   );
 }
