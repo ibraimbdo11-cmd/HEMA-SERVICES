@@ -22,6 +22,7 @@ import {
   Pencil,
   Play,
   Pause,
+  Package,
 } from 'lucide-react';
 
 interface ChatModalProps {
@@ -35,7 +36,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
   isOpen,
   onClose,
   orderId,
-  orderNumber: _orderNumber,
+  orderNumber,
 }) => {
   const { currentUser, profile, isAdmin } = useAuth();
   const [conversation, setConversation] = useState<Conversation | null>(null);
@@ -46,6 +47,18 @@ export const ChatModal: React.FC<ChatModalProps> = ({
   const [uploadStatusText, setUploadStatusText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Active Order Context inside customer canonical conversation
+  const [activeOrderContext, setActiveOrderContext] = useState<{
+    orderId?: string;
+    orderNumber?: string;
+  }>({ orderId, orderNumber });
+
+  useEffect(() => {
+    if (orderId) {
+      setActiveOrderContext({ orderId, orderNumber });
+    }
+  }, [orderId, orderNumber]);
+
   // Presence & Typing State
   const [adminStatus, setAdminStatus] = useState<{ isOnline: boolean; statusText: string }>({
     isOnline: false,
@@ -54,6 +67,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
   const [isAdminTyping, setIsAdminTyping] = useState(false);
   const adminTypingTimerRef = useRef<any>(null);
   const userTypingTimerRef = useRef<any>(null);
+  const lastTypingSentRef = useRef<number>(0);
 
   // Message Reply & Edit State
   const [replyingToMessage, setReplyingToMessage] = useState<MessageItem | null>(null);
@@ -101,6 +115,15 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
 
+  // Reset chat state when active user changes
+  useEffect(() => {
+    setConversation(null);
+    setMessages([]);
+    setError(null);
+    setEditingMessage(null);
+    setReplyingToMessage(null);
+  }, [currentUser?.uid]);
+
   // Format bytes to readable size
   const formatFileSize = (bytes?: number) => {
     if (!bytes || bytes <= 0) return '';
@@ -131,7 +154,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
           userId: currentUser.uid,
           userName: profile?.name || currentUser.displayName || 'العميل',
           userEmail: currentUser.email || '',
-          orderId: orderId,
+          orderId: activeOrderContext.orderId || orderId,
         });
 
         if (!isMounted) return;
@@ -155,28 +178,48 @@ export const ChatModal: React.FC<ChatModalProps> = ({
 
         // Realtime SSE Subscription
         unsubSSE = api.subscribeChat({
-          userId: currentUser.uid,
-          role: 'user',
           conversationId: conv.id,
-          onMessage: (newMsg) => {
+          onMessage: (newMsg, eventConvId) => {
             if (!isMounted) return;
+            const targetConvId = eventConvId || newMsg.conversationId;
+            // Strict isolation check: ignore events not belonging to this canonical conversation
+            if (targetConvId && targetConvId !== conv.id) return;
+
             setMessages((prev) => {
               if (prev.some((m) => m.id === newMsg.id)) return prev;
-              return [...prev, newMsg];
+              const next = [...prev, newMsg];
+              return next.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
             });
             setTimeout(scrollToBottom, 50);
             if (newMsg.senderRole === 'admin') {
               api.markConversationRead(conv.id).catch(() => {});
             }
           },
-          onMessageUpdated: (updatedMsg) => {
+          onMessageUpdated: (updatedMsg, eventConvId) => {
             if (!isMounted) return;
+            const targetConvId = eventConvId || updatedMsg.conversationId;
+            if (targetConvId && targetConvId !== conv.id) return;
+
             setMessages((prev) =>
               prev.map((m) => (m.id === updatedMsg.id ? updatedMsg : m))
             );
           },
+          onMessageDeleted: (delData) => {
+            if (!isMounted) return;
+            if (delData.conversationId && delData.conversationId !== conv.id) return;
+
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === delData.messageId
+                  ? (delData.message || { ...m, isDeleted: true, text: 'تم حذف هذه الرسالة' })
+                  : m
+              )
+            );
+          },
           onMessagesRead: (readData) => {
             if (!isMounted) return;
+            if (readData.conversationId && readData.conversationId !== conv.id) return;
+
             setMessages((prev) =>
               prev.map((m) => {
                 if (m.senderId === currentUser.uid && !m.readAt) {
@@ -188,14 +231,16 @@ export const ChatModal: React.FC<ChatModalProps> = ({
           },
           onTyping: (data) => {
             if (!isMounted) return;
-            if (data.userId !== currentUser.uid) {
-              setIsAdminTyping(data.isTyping);
-              if (adminTypingTimerRef.current) clearTimeout(adminTypingTimerRef.current);
-              if (data.isTyping) {
-                adminTypingTimerRef.current = setTimeout(() => {
-                  if (isMounted) setIsAdminTyping(false);
-                }, 3500);
-              }
+            // Only react to typing in THIS conversation from support
+            if (data.conversationId !== conv.id) return;
+            if (data.userId === currentUser.uid) return;
+
+            setIsAdminTyping(data.isTyping);
+            if (adminTypingTimerRef.current) clearTimeout(adminTypingTimerRef.current);
+            if (data.isTyping) {
+              adminTypingTimerRef.current = setTimeout(() => {
+                if (isMounted) setIsAdminTyping(false);
+              }, 3500);
             }
           },
           onPresence: (pres) => {
@@ -252,26 +297,24 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     scrollToBottom();
   }, [messages]);
 
-  // Handle typing debounce
+  // Handle typing debounce and throttle
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
     setInputText(val);
 
     if (conversation && currentUser) {
-      api.sendTyping(conversation.id, true, {
-        userId: currentUser.uid,
-        userName: profile?.name || currentUser.displayName || 'العميل',
-        role: 'user',
-      });
+      const now = Date.now();
+      // Throttle typing event to send at most once every 2.5s
+      if (now - lastTypingSentRef.current > 2500) {
+        lastTypingSentRef.current = now;
+        api.sendTyping(conversation.id, true).catch(() => {});
+      }
 
       if (userTypingTimerRef.current) clearTimeout(userTypingTimerRef.current);
       userTypingTimerRef.current = setTimeout(() => {
         if (conversation && currentUser) {
-          api.sendTyping(conversation.id, false, {
-            userId: currentUser.uid,
-            userName: profile?.name || currentUser.displayName || 'العميل',
-            role: 'user',
-          });
+          lastTypingSentRef.current = 0;
+          api.sendTyping(conversation.id, false).catch(() => {});
         }
       }, 2500);
     }
@@ -332,6 +375,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     setSending(true);
 
     if (userTypingTimerRef.current) clearTimeout(userTypingTimerRef.current);
+    lastTypingSentRef.current = 0;
     api.sendTyping(conversation.id, false, {
       userId: currentUser.uid,
       userName: profile?.name || currentUser.displayName || 'العميل',
@@ -369,6 +413,8 @@ export const ChatModal: React.FC<ChatModalProps> = ({
         fileSize,
         isImage,
         replyTo: replyRef,
+        orderId: activeOrderContext.orderId,
+        orderNumber: activeOrderContext.orderNumber,
       });
 
       setMessages((prev) => {
@@ -529,6 +575,8 @@ export const ChatModal: React.FC<ChatModalProps> = ({
         audioUrl: uploadRes.url,
         audioDuration: recordedAudioPreview.duration,
         replyTo: replyRef,
+        orderId: activeOrderContext.orderId,
+        orderNumber: activeOrderContext.orderNumber,
       });
       setMessages((prev) => {
         if (prev.some((m) => m.id === msg.id)) return prev;
@@ -570,16 +618,52 @@ export const ChatModal: React.FC<ChatModalProps> = ({
             </div>
           </div>
 
-          {/* Close button */}
-          <button
-            onClick={onClose}
-            id="close-chat-modal-btn"
-            className="w-9 h-9 rounded-xl border border-white/[0.08] bg-slate-900/80 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors flex items-center justify-center cursor-pointer"
-            title="إغلاق المحادثة"
-          >
-            <X className="w-4.5 h-4.5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Active order context badge in header */}
+            {activeOrderContext.orderNumber && (
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono">
+                <Package className="w-3.5 h-3.5" />
+                <span>طلب #{activeOrderContext.orderNumber}</span>
+                <button
+                  type="button"
+                  onClick={() => setActiveOrderContext({})}
+                  className="text-slate-400 hover:text-white mr-1"
+                  title="إلغاء تحديد الطلب والتحدث بشكل عام"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+
+            {/* Close button */}
+            <button
+              onClick={onClose}
+              id="close-chat-modal-btn"
+              className="w-9 h-9 rounded-xl border border-white/[0.08] bg-slate-900/80 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors flex items-center justify-center cursor-pointer"
+              title="إغلاق المحادثة"
+            >
+              <X className="w-4.5 h-4.5" />
+            </button>
+          </div>
         </div>
+
+        {/* Active Order Context Sub-Banner */}
+        {activeOrderContext.orderNumber && (
+          <div className="px-4 py-1.5 bg-emerald-950/40 border-b border-emerald-500/20 flex items-center justify-between text-xs text-emerald-300 shrink-0">
+            <div className="flex items-center gap-1.5 font-mono text-[11px] sm:text-xs">
+              <Package className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <span>سياق المحادثة الحالي: طلب #{activeOrderContext.orderNumber}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveOrderContext({})}
+              className="text-[11px] text-slate-400 hover:text-white underline cursor-pointer"
+              title="إزالة ربط الطلب بالتحدث بشكل عام"
+            >
+              متابعة كدعم عام
+            </button>
+          </div>
+        )}
 
         {/* Error Alert */}
         {error && (
@@ -699,6 +783,20 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                             : 'bg-[#121824] text-slate-200 border border-white/[0.07] rounded-tr-sm'
                         }`}
                       >
+                        {/* Order Context Tag if message is related to an order */}
+                        {msg.orderNumber && (
+                          <div
+                            className={`inline-flex items-center gap-1 mb-2 px-2 py-0.5 rounded text-[10px] font-mono font-medium ${
+                              isMine
+                                ? 'bg-slate-950/20 text-slate-900 border border-slate-950/15'
+                                : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                            }`}
+                          >
+                            <Package className="w-2.5 h-2.5 shrink-0" />
+                            <span>طلب #{msg.orderNumber}</span>
+                          </div>
+                        )}
+
                         {/* Quoted Reply Preview */}
                         {msg.replyTo && (
                           <div

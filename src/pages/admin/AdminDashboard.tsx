@@ -115,6 +115,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
   const [isClientTyping, setIsClientTyping] = useState(false);
   const clientTypingTimerRef = React.useRef<any>(null);
   const adminTypingTimerRef = React.useRef<any>(null);
+  const adminLastTypingSentRef = React.useRef<number>(0);
+  const [activeClientPresence, setActiveClientPresence] = useState<{ isOnline: boolean; lastSeenAt?: string }>({ isOnline: false });
   const [adminReplyingTo, setAdminReplyingTo] = useState<MessageItem | null>(null);
   const [adminEditingMsg, setAdminEditingMsg] = useState<MessageItem | null>(null);
   const [adminEditText, setAdminEditText] = useState('');
@@ -243,17 +245,37 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
       userId: currentUser.uid,
       role: 'admin',
       conversationId: activeConversation?.id,
-      onMessage: (msg) => {
+      onMessage: (msg, convId) => {
         if (!isMounted) return;
-        if (activeConversation && msg.conversationId === activeConversation.id) {
-          setActiveMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+        const targetConvId = convId || msg.conversationId;
+        if (activeConversation && targetConvId === activeConversation.id) {
+          setActiveMessages((prev) => {
+            if (prev.some((m) => m.id === msg.id)) return prev;
+            return [...prev, msg].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+          });
           api.markConversationRead(activeConversation.id).catch(() => {});
         }
         loadConversations();
       },
-      onMessageUpdated: (updatedMsg) => {
+      onMessageUpdated: (updatedMsg, convId) => {
         if (!isMounted) return;
-        setActiveMessages((prev) => prev.map((m) => (m.id === updatedMsg.id ? updatedMsg : m)));
+        const targetConvId = convId || updatedMsg.conversationId;
+        if (activeConversation && targetConvId === activeConversation.id) {
+          setActiveMessages((prev) => prev.map((m) => (m.id === updatedMsg.id ? updatedMsg : m)));
+        }
+        loadConversations();
+      },
+      onMessageDeleted: (delData) => {
+        if (!isMounted) return;
+        if (activeConversation && delData.conversationId === activeConversation.id) {
+          setActiveMessages((prev) =>
+            prev.map((m) =>
+              m.id === delData.messageId
+                ? (delData.message || { ...m, isDeleted: true, text: 'تم حذف هذه الرسالة' })
+                : m
+            )
+          );
+        }
         loadConversations();
       },
       onMessagesRead: (readData) => {
@@ -276,15 +298,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
           }
         }
       },
+      onPresence: (pres) => {
+        if (!isMounted) return;
+        if (activeConversation && pres.userId === activeConversation.userId) {
+          setActiveClientPresence({ isOnline: pres.isOnline, lastSeenAt: pres.lastSeenAt });
+        }
+      },
+      onNotification: () => {
+        if (!isMounted) return;
+        loadNotifications();
+        loadOrders();
+      },
     });
 
     if (activeConversation) {
+      // Fetch initial active client presence status
+      api.getUserPresence(activeConversation.userId).then((pres) => {
+        if (isMounted) {
+          setActiveClientPresence({ isOnline: pres.isOnline, lastSeenAt: pres.lastSeenAt });
+        }
+      }).catch(() => {});
+
       api.getMessages(activeConversation.id).then((msgs) => {
         if (isMounted) {
           setActiveMessages(msgs);
           api.markConversationRead(activeConversation.id).catch(() => {});
         }
       }).catch(console.error);
+    } else {
+      setActiveClientPresence({ isOnline: false });
     }
 
     return () => {
@@ -429,15 +471,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
   const handleAdminChatInputChange = (val: string) => {
     setChatInput(val);
     if (activeConversation && currentUser) {
-      api.sendTyping(activeConversation.id, true, {
-        userId: currentUser.uid,
-        userName: 'إدارة HEMA SERVICES',
-        role: 'admin',
-      }).catch(() => {});
+      const now = Date.now();
+      if (now - adminLastTypingSentRef.current > 2500) {
+        adminLastTypingSentRef.current = now;
+        api.sendTyping(activeConversation.id, true, {
+          userId: currentUser.uid,
+          userName: 'إدارة HEMA SERVICES',
+          role: 'admin',
+        }).catch(() => {});
+      }
 
       if (adminTypingTimerRef.current) clearTimeout(adminTypingTimerRef.current);
       adminTypingTimerRef.current = setTimeout(() => {
         if (activeConversation && currentUser) {
+          adminLastTypingSentRef.current = 0;
           api.sendTyping(activeConversation.id, false, {
             userId: currentUser.uid,
             userName: 'إدارة HEMA SERVICES',
@@ -470,6 +517,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
     setSendingMsg(true);
 
     if (adminTypingTimerRef.current) clearTimeout(adminTypingTimerRef.current);
+    adminLastTypingSentRef.current = 0;
     api.sendTyping(activeConversation.id, false, {
       userId: currentUser.uid,
       userName: 'إدارة HEMA SERVICES',
@@ -484,6 +532,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
         type: 'text',
         text: textToSend,
         replyTo: replyRef,
+        orderId: adminReplyingTo?.orderId || activeConversation.orderId,
+        orderNumber: adminReplyingTo?.orderNumber || activeConversation.orderNumber,
       });
       setActiveMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
       loadConversations();
@@ -1011,9 +1061,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
 
                   {/* Open customer chat for this order */}
                   <button
-                    onClick={() => {
-                      const conv = conversationsList.find((c) => c.orderId === selectedOrder.id) ||
-                        conversationsList.find((c) => c.userId === selectedOrder.userId);
+                    onClick={async () => {
+                      let conv = conversationsList.find((c) => c.userId === selectedOrder.userId);
+                      if (!conv) {
+                        try {
+                          conv = await api.findOrCreateConversation({
+                            userId: selectedOrder.userId,
+                            orderId: selectedOrder.id,
+                          });
+                          await loadConversations();
+                        } catch (e) {
+                          console.error('Error finding/creating conversation', e);
+                        }
+                      }
                       if (conv) setActiveConversation(conv);
                       setActiveTab('conversations');
                     }}
@@ -1361,9 +1421,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                           <ArrowRight className="w-4 h-4" />
                         </button>
                         <div className="min-w-0">
-                          <h3 className="text-xs sm:text-sm font-bold text-slate-100 truncate">
-                            {activeConversation.userName}
-                          </h3>
+                          <div className="flex items-center gap-1.5">
+                            <h3 className="text-xs sm:text-sm font-bold text-slate-100 truncate">
+                              {activeConversation.userName}
+                            </h3>
+                            <span
+                              className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium ${
+                                activeClientPresence.isOnline
+                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                  : 'bg-slate-800 text-slate-400 border border-slate-700'
+                              }`}
+                            >
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  activeClientPresence.isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'
+                                }`}
+                              />
+                              <span>{activeClientPresence.isOnline ? 'متصل الآن' : 'غير متصل'}</span>
+                            </span>
+                          </div>
                           <p className="text-[10px] text-slate-400 truncate">{activeConversation.userEmail}</p>
                         </div>
                       </div>
@@ -1456,6 +1532,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                                       : 'bg-slate-900 text-slate-200 border border-slate-800 rounded-tr-sm'
                                   }`}
                                 >
+                                  {/* Order context tag if message was sent regarding an order */}
+                                  {msg.orderNumber && (
+                                    <div
+                                      className={`inline-flex items-center gap-1 mb-1.5 px-2 py-0.5 rounded text-[10px] font-mono font-medium ${
+                                        isFromAdmin
+                                          ? 'bg-slate-950/20 text-slate-900 border border-slate-950/15'
+                                          : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                      }`}
+                                    >
+                                      <Package className="w-2.5 h-2.5 shrink-0" />
+                                      <span>طلب: #{msg.orderNumber}</span>
+                                    </div>
+                                  )}
+
                                   {/* Quoted reply snippet */}
                                   {msg.replyTo && (
                                     <div
