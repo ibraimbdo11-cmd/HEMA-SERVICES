@@ -1,13 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { NotificationItem } from '../types';
-import { api } from '../lib/api';
+import { useNotifications } from '../context/NotificationContext';
 import { Bell, CheckCheck, FileText, MessageSquare, AlertCircle, X } from 'lucide-react';
 
 interface NotificationsPanelProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectOrder?: (orderId: string) => void;
-  onOpenSupport?: () => void;
+  onOpenSupport?: (conversationId?: string, orderId?: string) => void;
 }
 
 export const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
@@ -16,48 +16,32 @@ export const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
   onSelectOrder,
   onOpenSupport,
 }) => {
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  const fetchNotifs = async () => {
-    try {
-      setLoading(true);
-      const data = await api.getNotifications();
-      setNotifications(data);
-    } catch (err) {
-      console.error('Error fetching notifications:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (isOpen) {
-      fetchNotifs();
-    }
-  }, [isOpen]);
+  const { notifications, loading, markAsRead, markAllAsRead } = useNotifications();
 
   const handleMarkAllRead = async () => {
     try {
-      await api.markAllNotificationsRead();
-      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      await markAllAsRead();
     } catch (err) {
       console.error(err);
     }
   };
 
   const handleItemClick = async (notif: NotificationItem) => {
+    // 1. Mark notification as read immediately
     if (!notif.isRead) {
-      await api.markNotificationRead(notif.id).catch(() => {});
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === notif.id ? { ...n, isRead: true } : n))
-      );
+      markAsRead(notif.id).catch(() => {});
     }
-    if (notif.relatedOrderId && onSelectOrder) {
+
+    // 2. Exact routing depending on notification type
+    if (notif.type === 'new_message') {
+      if (onOpenSupport) {
+        onOpenSupport(notif.relatedConversationId, notif.relatedOrderId);
+      }
+      onClose();
+    } else if (notif.relatedOrderId && onSelectOrder) {
       onSelectOrder(notif.relatedOrderId);
       onClose();
-    } else if (notif.type === 'new_message' && onOpenSupport) {
-      onOpenSupport();
+    } else {
       onClose();
     }
   };

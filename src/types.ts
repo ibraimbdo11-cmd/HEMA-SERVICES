@@ -100,6 +100,8 @@ export interface MessageItem {
   isEdited?: boolean;
   editedAt?: string;
   replyTo?: MessageReplyReference;
+  orderId?: string;
+  orderNumber?: string;
   createdAt: string;
   readAt?: string;
 }
@@ -119,6 +121,7 @@ export interface NotificationItem {
   body: string;
   relatedOrderId?: string;
   relatedConversationId?: string;
+  messageId?: string;
   isRead: boolean;
   createdAt: string;
 }
