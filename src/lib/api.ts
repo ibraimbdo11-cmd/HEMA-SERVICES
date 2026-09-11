@@ -9,60 +9,25 @@ import {
   DashboardOverviewKPI,
   UserProfile,
 } from '../types';
-import { auth } from './firebase';
 
-let cachedToken: string | null = null;
-let currentUserId = '';
 let currentUserEmail = '';
+let currentUserId = '';
 
-export function setApiAuth(userId: string, email: string, token?: string) {
+export function setApiAuth(userId: string, email: string) {
   currentUserId = userId;
   currentUserEmail = email;
-  if (token !== undefined) {
-    cachedToken = token;
-  }
 }
 
-export async function getFreshToken(): Promise<string | null> {
-  try {
-    if (auth.currentUser) {
-      const token = await auth.currentUser.getIdToken();
-      cachedToken = token;
-      return token;
-    }
-  } catch (err) {
-    console.error('Failed to get fresh Firebase ID token:', err);
-  }
-  return cachedToken;
-}
-
-async function getAuthHeaders(extraHeaders?: Record<string, string>): Promise<HeadersInit> {
+function getHeaders(): HeadersInit {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...extraHeaders,
   };
-
-  const token = await getFreshToken();
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
+  if (currentUserId) headers['x-user-id'] = currentUserId;
+  if (currentUserEmail) headers['x-user-email'] = currentUserEmail;
   return headers;
 }
 
 export const api = {
-  // Session & Auth
-  async logoutSession(): Promise<void> {
-    cachedToken = null;
-    currentUserId = '';
-    currentUserEmail = '';
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' });
-    } catch {
-      // ignore
-    }
-  },
-
   // Config
   async getConfig(): Promise<PlatformSettings> {
     const res = await fetch('/api/config');
@@ -71,37 +36,32 @@ export const api = {
   },
 
   async updateSettings(settings: Partial<PlatformSettings>): Promise<{ success: boolean; settings: PlatformSettings }> {
-    const headers = await getAuthHeaders();
     const res = await fetch('/api/admin/settings', {
       method: 'PUT',
-      headers,
+      headers: getHeaders(),
       body: JSON.stringify(settings),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'فشل في حفظ الإعدادات');
-    }
+    if (!res.ok) throw new Error('فشل في تحديث إعدادات المنصة');
     return res.json();
   },
 
   // Services
   async getServices(): Promise<ServiceItem[]> {
     const res = await fetch('/api/services');
-    if (!res.ok) throw new Error('فشل في جلب قائمة الخدمات');
+    if (!res.ok) throw new Error('فشل في جلب الخدمات');
     return res.json();
   },
 
   async getService(id: string): Promise<ServiceItem> {
     const res = await fetch(`/api/services/${id}`);
-    if (!res.ok) throw new Error('الخدمة المطلوبة غير متوفرة');
+    if (!res.ok) throw new Error('الخدمة غير موجودة');
     return res.json();
   },
 
-  async createService(serviceData: Omit<ServiceItem, 'id'>): Promise<ServiceItem> {
-    const headers = await getAuthHeaders();
+  async createService(serviceData: Partial<ServiceItem>): Promise<ServiceItem> {
     const res = await fetch('/api/services', {
       method: 'POST',
-      headers,
+      headers: getHeaders(),
       body: JSON.stringify(serviceData),
     });
     if (!res.ok) {
@@ -112,10 +72,9 @@ export const api = {
   },
 
   async updateService(id: string, serviceData: Partial<ServiceItem>): Promise<ServiceItem> {
-    const headers = await getAuthHeaders();
     const res = await fetch(`/api/services/${id}`, {
       method: 'PUT',
-      headers,
+      headers: getHeaders(),
       body: JSON.stringify(serviceData),
     });
     if (!res.ok) {
@@ -126,38 +85,32 @@ export const api = {
   },
 
   async deleteService(id: string): Promise<{ success: boolean }> {
-    const headers = await getAuthHeaders();
     const res = await fetch(`/api/services/${id}`, {
       method: 'DELETE',
-      headers,
+      headers: getHeaders(),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'فشل في حذف الخدمة');
-    }
+    if (!res.ok) throw new Error('فشل في حذف الخدمة');
     return res.json();
   },
 
   // Orders
-  async getOrders(adminFilterUserId?: string): Promise<OrderItem[]> {
-    const headers = await getAuthHeaders();
-    const url = adminFilterUserId ? `/api/orders?userId=${encodeURIComponent(adminFilterUserId)}` : '/api/orders';
-    const res = await fetch(url, { headers });
+  async getOrders(): Promise<OrderItem[]> {
+    const url = currentUserId ? `/api/orders?userId=${encodeURIComponent(currentUserId)}` : '/api/orders';
+    const res = await fetch(url, { headers: getHeaders() });
     if (!res.ok) throw new Error('فشل في جلب الطلبات');
     return res.json();
   },
 
   async getOrder(id: string): Promise<OrderItem> {
-    const headers = await getAuthHeaders();
-    const res = await fetch(`/api/orders/${id}`, { headers });
+    const res = await fetch(`/api/orders/${id}`, { headers: getHeaders() });
     if (!res.ok) throw new Error('فشل في جلب بيانات الطلب');
     return res.json();
   },
 
   async createOrder(orderData: {
-    userId?: string;
-    userName?: string;
-    userEmail?: string;
+    userId: string;
+    userName: string;
+    userEmail: string;
     serviceId: string;
     customerRequirements?: string;
     paymentProof: string;
@@ -165,10 +118,9 @@ export const api = {
     paymentMethod?: string;
     senderWalletNumber?: string;
   }): Promise<OrderItem> {
-    const headers = await getAuthHeaders();
     const res = await fetch('/api/orders', {
       method: 'POST',
-      headers,
+      headers: getHeaders(),
       body: JSON.stringify(orderData),
     });
     if (!res.ok) {
@@ -179,10 +131,9 @@ export const api = {
   },
 
   async updateOrderStatus(id: string, status: OrderStatus, rejectionReason?: string): Promise<OrderItem> {
-    const headers = await getAuthHeaders();
     const res = await fetch(`/api/orders/${id}/status`, {
       method: 'PATCH',
-      headers,
+      headers: getHeaders(),
       body: JSON.stringify({ status, rejectionReason }),
     });
     if (!res.ok) {
@@ -193,10 +144,9 @@ export const api = {
   },
 
   async cancelOrder(id: string): Promise<{ success: boolean; order: OrderItem }> {
-    const headers = await getAuthHeaders();
     const res = await fetch(`/api/orders/${id}/cancel`, {
       method: 'POST',
-      headers,
+      headers: getHeaders(),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -205,17 +155,15 @@ export const api = {
     return res.json();
   },
 
-  // File Upload (Via backend, authenticated)
+  // File Upload (Via backend, NOT Firebase Storage)
   async uploadFile(file: File | Blob, originalName?: string): Promise<{ url: string; filename: string }> {
     const formData = new FormData();
     const name = originalName || (file instanceof File ? file.name : 'upload.bin');
     formData.append('file', file, name);
 
     const headers: Record<string, string> = {};
-    const token = await getFreshToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
+    if (currentUserId) headers['x-user-id'] = currentUserId;
+    if (currentUserEmail) headers['x-user-email'] = currentUserEmail;
 
     const res = await fetch('/api/upload', {
       method: 'POST',
@@ -232,22 +180,21 @@ export const api = {
 
   // Conversations & Chat
   async getConversations(): Promise<Conversation[]> {
-    const headers = await getAuthHeaders();
-    const res = await fetch('/api/conversations', { headers });
+    const url = currentUserId ? `/api/conversations?userId=${encodeURIComponent(currentUserId)}` : '/api/conversations';
+    const res = await fetch(url, { headers: getHeaders() });
     if (!res.ok) throw new Error('فشل في جلب المحادثات');
     return res.json();
   },
 
   async findOrCreateConversation(data: {
-    userId?: string;
-    userName?: string;
-    userEmail?: string;
+    userId: string;
+    userName: string;
+    userEmail: string;
     orderId?: string;
   }): Promise<Conversation> {
-    const headers = await getAuthHeaders();
     const res = await fetch('/api/conversations/find-or-create', {
       method: 'POST',
-      headers,
+      headers: getHeaders(),
       body: JSON.stringify(data),
     });
     if (!res.ok) throw new Error('فشل في إنشاء أو العثور على المحادثة');
@@ -265,8 +212,7 @@ export const api = {
     const queryString = query.toString();
     if (queryString) url += `?${queryString}`;
 
-    const headers = await getAuthHeaders();
-    const res = await fetch(url, { headers });
+    const res = await fetch(url, { headers: getHeaders() });
     if (!res.ok) throw new Error('فشل في جلب الرسائل');
     const data = await res.json();
     if (Array.isArray(data)) return data;
@@ -284,8 +230,7 @@ export const api = {
     const queryString = query.toString();
     if (queryString) url += `?${queryString}`;
 
-    const headers = await getAuthHeaders();
-    const res = await fetch(url, { headers });
+    const res = await fetch(url, { headers: getHeaders() });
     if (!res.ok) throw new Error('فشل في جلب الرسائل');
     const data = await res.json();
     if (Array.isArray(data)) {
@@ -297,9 +242,9 @@ export const api = {
   async sendMessage(
     conversationId: string,
     messageData: {
-      senderId?: string;
-      senderName?: string;
-      senderRole?: 'user' | 'admin';
+      senderId: string;
+      senderName: string;
+      senderRole: 'user' | 'admin';
       type: 'text' | 'file' | 'audio' | 'image';
       text?: string;
       fileUrl?: string;
@@ -316,14 +261,11 @@ export const api = {
         fileName?: string;
         isImage?: boolean;
       };
-      orderId?: string;
-      orderNumber?: string;
     }
   ): Promise<MessageItem> {
-    const headers = await getAuthHeaders();
     const res = await fetch(`/api/conversations/${conversationId}/messages`, {
       method: 'POST',
-      headers,
+      headers: getHeaders(),
       body: JSON.stringify(messageData),
     });
     if (!res.ok) {
@@ -334,10 +276,9 @@ export const api = {
   },
 
   async editMessage(conversationId: string, messageId: string, text: string): Promise<MessageItem> {
-    const headers = await getAuthHeaders();
     const res = await fetch(`/api/conversations/${conversationId}/messages/${messageId}`, {
       method: 'PUT',
-      headers,
+      headers: getHeaders(),
       body: JSON.stringify({ text }),
     });
     if (!res.ok) {
@@ -349,10 +290,9 @@ export const api = {
   },
 
   async deleteMessage(conversationId: string, messageId: string): Promise<{ success: boolean }> {
-    const headers = await getAuthHeaders();
     const res = await fetch(`/api/conversations/${conversationId}/messages/${messageId}`, {
       method: 'DELETE',
-      headers,
+      headers: getHeaders(),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -363,10 +303,9 @@ export const api = {
 
   async markConversationRead(conversationId: string): Promise<void> {
     try {
-      const headers = await getAuthHeaders();
       await fetch(`/api/conversations/${conversationId}/read`, {
         method: 'POST',
-        headers,
+        headers: getHeaders(),
       });
     } catch {
       // silent
@@ -376,13 +315,12 @@ export const api = {
   async sendTyping(
     conversationId: string,
     isTyping: boolean,
-    data?: { userId?: string; userName?: string; role?: 'admin' | 'user' }
+    data: { userId: string; userName: string; role: 'admin' | 'user' }
   ): Promise<void> {
     try {
-      const headers = await getAuthHeaders();
       await fetch(`/api/conversations/${conversationId}/typing`, {
         method: 'POST',
-        headers,
+        headers: getHeaders(),
         body: JSON.stringify({ ...data, isTyping }),
       });
     } catch {
@@ -391,26 +329,26 @@ export const api = {
   },
 
   async getUserPresence(userId: string): Promise<{ userId: string; isOnline: boolean; lastSeenAt: string }> {
-    const headers = await getAuthHeaders();
     const res = await fetch(`/api/chat/presence/${encodeURIComponent(userId)}`, {
-      headers,
+      headers: getHeaders(),
     });
     if (!res.ok) return { userId, isOnline: false, lastSeenAt: new Date().toISOString() };
     return res.json();
   },
 
   async getAdminPresenceStatus(): Promise<{ isOnline: boolean; statusText: string }> {
-    const res = await fetch('/api/chat/presence-admin/status');
+    const res = await fetch('/api/chat/presence-admin/status', {
+      headers: getHeaders(),
+    });
     if (!res.ok) return { isOnline: false, statusText: 'خدمة العملاء متاحة للرد' };
     return res.json();
   },
 
   async sendPresenceHeartbeat(userId: string, role: 'admin' | 'user'): Promise<void> {
     try {
-      const headers = await getAuthHeaders();
       await fetch('/api/chat/presence', {
         method: 'POST',
-        headers,
+        headers: getHeaders(),
         body: JSON.stringify({ userId, role, isOnline: true }),
       });
     } catch {
@@ -418,262 +356,115 @@ export const api = {
     }
   },
 
-  // Realtime Server-Sent Events Chat Subscription (Authenticated & Account-Safe)
+  // Realtime Server-Sent Events Chat Subscription
   subscribeChat(params: {
+    userId: string;
+    role: 'admin' | 'user';
     conversationId?: string;
-    onMessage?: (msg: MessageItem, conversationId?: string) => void;
-    onMessageUpdated?: (msg: MessageItem, conversationId?: string) => void;
-    onMessageDeleted?: (data: { conversationId: string; messageId: string; message?: MessageItem }) => void;
+    onMessage?: (msg: MessageItem) => void;
+    onMessageUpdated?: (msg: MessageItem) => void;
     onMessagesRead?: (data: { conversationId: string; readAt: string; readByRole: string }) => void;
-    onTyping?: (data: { conversationId: string; userId: string; userName: string; role?: string; isTyping: boolean }) => void;
+    onTyping?: (data: { conversationId: string; userId: string; userName: string; isTyping: boolean }) => void;
     onPresence?: (data: { userId: string; role: string; isOnline: boolean; lastSeenAt: string }) => void;
-    onNotification?: (data: { userId: string; notification?: NotificationItem }) => void;
-    onNotificationRead?: (data: { userId: string; notificationId: string }) => void;
-    onNotificationsRead?: (data: { userId: string }) => void;
-    onConversationUnreadUpdated?: (data: { conversationId: string; userId: string; unreadByUser: number; unreadByAdmin: number }) => void;
-    // Backward compatibility optional fields (ignored for auth security)
-    userId?: string;
-    role?: 'admin' | 'user';
   }): () => void {
-    let eventSource: EventSource | null = null;
-    let isCancelled = false;
-    let retryTimeout: any = null;
-    let retryAttempt = 0;
+    const query = new URLSearchParams({
+      userId: params.userId,
+      role: params.role,
+    });
+    if (params.conversationId) query.set('convId', params.conversationId);
 
-    const connect = async () => {
-      if (isCancelled) return;
+    const eventSource = new EventSource(`/api/chat/stream?${query.toString()}`);
 
-      try {
-        // Re-authenticate and obtain a fresh token on each connection / reconnection
-        const token = await getFreshToken();
-        if (isCancelled) return;
-        if (!token) {
-          // If no token exists (e.g. logged out), do not establish connection
-          return;
+    if (params.onMessage) {
+      eventSource.addEventListener('message_created', (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data.message) params.onMessage!(data.message);
+        } catch (err) {
+          console.error('Failed to parse SSE message_created', err);
         }
+      });
+    }
 
-        // Close any prior lingering connection before creating a new one
-        if (eventSource) {
-          eventSource.close();
-          eventSource = null;
+    if (params.onMessageUpdated) {
+      eventSource.addEventListener('message_updated', (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data.message) params.onMessageUpdated!(data.message);
+        } catch (err) {
+          console.error('Failed to parse SSE message_updated', err);
         }
+      });
+    }
 
-        const query = new URLSearchParams({ token });
-        if (params.conversationId) query.set('convId', params.conversationId);
-
-        const es = new EventSource(`/api/chat/stream?${query.toString()}`);
-        eventSource = es;
-
-        es.onopen = () => {
-          // Reset retry backoff upon successful connection
-          retryAttempt = 0;
-        };
-
-        if (params.onMessage) {
-          es.addEventListener('message_created', (e) => {
-            try {
-              const data = JSON.parse(e.data);
-              if (data.message) params.onMessage!(data.message, data.conversationId);
-            } catch (err) {
-              console.error('Failed to parse SSE message_created', err);
-            }
-          });
+    if (params.onMessagesRead) {
+      eventSource.addEventListener('messages_read', (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          params.onMessagesRead!(data);
+        } catch (err) {
+          console.error('Failed to parse SSE messages_read', err);
         }
+      });
+    }
 
-        if (params.onMessageUpdated) {
-          es.addEventListener('message_updated', (e) => {
-            try {
-              const data = JSON.parse(e.data);
-              if (data.message) params.onMessageUpdated!(data.message, data.conversationId);
-            } catch (err) {
-              console.error('Failed to parse SSE message_updated', err);
-            }
-          });
+    if (params.onTyping) {
+      eventSource.addEventListener('typing', (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          params.onTyping!(data);
+        } catch (err) {
+          console.error('Failed to parse SSE typing', err);
         }
+      });
+    }
 
-        if (params.onMessageDeleted) {
-          es.addEventListener('message_deleted', (e) => {
-            try {
-              const data = JSON.parse(e.data);
-              params.onMessageDeleted!(data);
-            } catch (err) {
-              console.error('Failed to parse SSE message_deleted', err);
-            }
-          });
+    if (params.onPresence) {
+      eventSource.addEventListener('presence', (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          params.onPresence!(data);
+        } catch (err) {
+          console.error('Failed to parse SSE presence', err);
         }
-
-        if (params.onMessagesRead) {
-          es.addEventListener('messages_read', (e) => {
-            try {
-              const data = JSON.parse(e.data);
-              params.onMessagesRead!(data);
-            } catch (err) {
-              console.error('Failed to parse SSE messages_read', err);
-            }
-          });
-        }
-
-        if (params.onTyping) {
-          es.addEventListener('typing', (e) => {
-            try {
-              const data = JSON.parse(e.data);
-              params.onTyping!(data);
-            } catch (err) {
-              console.error('Failed to parse SSE typing', err);
-            }
-          });
-        }
-
-        if (params.onPresence) {
-          es.addEventListener('presence', (e) => {
-            try {
-              const data = JSON.parse(e.data);
-              params.onPresence!(data);
-            } catch (err) {
-              console.error('Failed to parse SSE presence', err);
-            }
-          });
-        }
-
-        if (params.onNotification) {
-          es.addEventListener('new_notification', (e) => {
-            try {
-              const data = JSON.parse(e.data);
-              params.onNotification!(data);
-            } catch (err) {
-              console.error('Failed to parse SSE new_notification', err);
-            }
-          });
-        }
-
-        if (params.onNotificationRead) {
-          es.addEventListener('notification_read', (e) => {
-            try {
-              const data = JSON.parse(e.data);
-              params.onNotificationRead!(data);
-            } catch (err) {
-              console.error('Failed to parse SSE notification_read', err);
-            }
-          });
-        }
-
-        if (params.onNotificationsRead) {
-          es.addEventListener('notifications_read', (e) => {
-            try {
-              const data = JSON.parse(e.data);
-              params.onNotificationsRead!(data);
-            } catch (err) {
-              console.error('Failed to parse SSE notifications_read', err);
-            }
-          });
-        }
-
-        if (params.onConversationUnreadUpdated) {
-          es.addEventListener('conversation_unread_updated', (e) => {
-            try {
-              const data = JSON.parse(e.data);
-              params.onConversationUnreadUpdated!(data);
-            } catch (err) {
-              console.error('Failed to parse SSE conversation_unread_updated', err);
-            }
-          });
-        }
-
-        es.addEventListener('force_disconnect', () => {
-          // Server explicitly closed connection (e.g. user logged out)
-          isCancelled = true;
-          es.close();
-          if (eventSource === es) eventSource = null;
-        });
-
-        es.onerror = () => {
-          if (isCancelled) return;
-          // Close failing connection and schedule reconnection with exponential backoff
-          es.close();
-          if (eventSource === es) eventSource = null;
-
-          const backoffDelay = Math.min(2000 * Math.pow(1.5, retryAttempt), 30000);
-          retryAttempt++;
-
-          if (retryTimeout) clearTimeout(retryTimeout);
-          retryTimeout = setTimeout(() => {
-            if (!isCancelled) {
-              connect();
-            }
-          }, backoffDelay);
-        };
-      } catch (err) {
-        if (!isCancelled) {
-          const backoffDelay = Math.min(2000 * Math.pow(1.5, retryAttempt), 30000);
-          retryAttempt++;
-          if (retryTimeout) clearTimeout(retryTimeout);
-          retryTimeout = setTimeout(() => {
-            if (!isCancelled) {
-              connect();
-            }
-          }, backoffDelay);
-        }
-      }
-    };
-
-    connect();
+      });
+    }
 
     return () => {
-      isCancelled = true;
-      if (retryTimeout) {
-        clearTimeout(retryTimeout);
-        retryTimeout = null;
-      }
-      if (eventSource) {
-        eventSource.close();
-        eventSource = null;
-      }
+      eventSource.close();
     };
   },
 
   // Notifications
   async getNotifications(): Promise<NotificationItem[]> {
-    const headers = await getAuthHeaders();
-    const res = await fetch('/api/notifications', { headers });
+    const url = currentUserId ? `/api/notifications?userId=${encodeURIComponent(currentUserId)}` : '/api/notifications';
+    const res = await fetch(url, { headers: getHeaders() });
     if (!res.ok) throw new Error('فشل في جلب الإشعارات');
     return res.json();
   },
 
   async markNotificationRead(id: string): Promise<{ success: boolean }> {
-    const headers = await getAuthHeaders();
     const res = await fetch(`/api/notifications/${id}/read`, {
       method: 'PATCH',
-      headers,
+      headers: getHeaders(),
     });
     return res.json();
   },
 
   async markAllNotificationsRead(): Promise<{ success: boolean }> {
-    const headers = await getAuthHeaders();
-    const res = await fetch('/api/notifications/read-all', {
+    const url = currentUserId ? `/api/notifications/read-all?userId=${encodeURIComponent(currentUserId)}` : '/api/notifications/read-all';
+    const res = await fetch(url, {
       method: 'PATCH',
-      headers,
+      headers: getHeaders(),
     });
     return res.json();
   },
 
-  async getUnreadSupportCount(): Promise<{ unreadSupportCount: number }> {
-    try {
-      const headers = await getAuthHeaders();
-      const res = await fetch('/api/conversations/unread-count', { headers });
-      if (!res.ok) return { unreadSupportCount: 0 };
-      return res.json();
-    } catch {
-      return { unreadSupportCount: 0 };
-    }
-  },
-
   // Users & Admin
-  async syncUser(user: { id?: string; name: string; email: string; photo?: string }): Promise<UserProfile> {
-    const headers = await getAuthHeaders();
+  async syncUser(user: { id: string; name: string; email: string; photo?: string }): Promise<UserProfile> {
     const res = await fetch('/api/users/sync', {
       method: 'POST',
-      headers,
+      headers: getHeaders(),
       body: JSON.stringify(user),
     });
     if (!res.ok) throw new Error('فشل في مزامنة بيانات المستخدم');
@@ -681,18 +472,16 @@ export const api = {
   },
 
   async getAdminOverview(): Promise<{ kpi: DashboardOverviewKPI; recentOrders: OrderItem[] }> {
-    const headers = await getAuthHeaders();
     const res = await fetch('/api/admin/overview', {
-      headers,
+      headers: getHeaders(),
     });
     if (!res.ok) throw new Error('غير مصرح بالوصول إلى لوحة التحكم');
     return res.json();
   },
 
   async getAdminUsers(): Promise<UserProfile[]> {
-    const headers = await getAuthHeaders();
     const res = await fetch('/api/admin/users', {
-      headers,
+      headers: getHeaders(),
     });
     if (!res.ok) throw new Error('غير مصرح بالوصول إلى بيانات المستخدمين');
     return res.json();

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { Logo } from './Logo';
 import { useAuth } from '../context/AuthContext';
-import { useNotifications } from '../context/NotificationContext';
+import { api } from '../lib/api';
 import { NotificationsPanel } from './NotificationsPanel';
 import { UserAccountMenu } from './UserAccountMenu';
 import { TopMenu } from './TopMenu';
@@ -12,7 +12,7 @@ interface HeaderProps {
   currentView: string;
   onNavigate: (view: string) => void;
   onOpenAuth: (mode: 'login' | 'register') => void;
-  onOpenSupport: (conversationId?: string, orderId?: string, orderNumber?: string) => void;
+  onOpenSupport: () => void;
   onSelectOrder?: (orderId: string) => void;
 }
 
@@ -24,13 +24,36 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectOrder,
 }) => {
   const { currentUser, profile } = useAuth();
-  const { unreadCount } = useNotifications();
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [isTopMenuOpen, setIsTopMenuOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
 
   const accountRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
+
+  // Poll notifications periodically
+  useEffect(() => {
+    let isMounted = true;
+    const checkNotifs = async () => {
+      try {
+        const notifs = await api.getNotifications();
+        if (isMounted) {
+          const unread = notifs.filter((n) => !n.isRead).length;
+          setUnreadNotifCount(unread);
+        }
+      } catch {
+        // silent fail
+      }
+    };
+
+    checkNotifs();
+    const interval = setInterval(checkNotifs, 12000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [currentUser]);
 
   // Close menus on outside click
   useEffect(() => {
@@ -172,12 +195,12 @@ export const Header: React.FC<HeaderProps> = ({
                 aria-label="الإشعارات"
               >
                 <Bell className="w-4 h-4" />
-                {unreadCount > 0 && (
+                {unreadNotifCount > 0 && (
                   <span
                     id="unread-notifications-indicator"
                     className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-emerald-500 text-slate-950 font-bold text-[10px] rounded-full flex items-center justify-center border-2 border-[#080b11]"
                   >
-                    {unreadCount > 9 ? '9+' : unreadCount}
+                    {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
                   </span>
                 )}
               </button>

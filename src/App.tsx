@@ -52,14 +52,6 @@ function MainApp() {
     orderNumber?: string;
   }>({});
 
-  // Reset customer session state when user changes
-  useEffect(() => {
-    setSelectedOrderIdForDetails(null);
-    setChatOrderContext({});
-    setChatOpen(false);
-    setUnreadSupportCount(0);
-  }, [currentUser?.uid]);
-
   // Realtime subscription & sync for support messages unread count
   useEffect(() => {
     if (!currentUser) {

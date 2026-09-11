@@ -60,17 +60,8 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
   };
 
   useEffect(() => {
-    setOrders([]);
-    setActiveOrder(null);
-    setOrderToCancel(null);
-    setCancelError(null);
-    setCancelSuccess(null);
-    if (currentUser) {
-      fetchOrders();
-    } else {
-      setLoading(false);
-    }
-  }, [currentUser?.uid, selectedOrderId]);
+    fetchOrders();
+  }, [currentUser, selectedOrderId]);
 
   const handleConfirmCancel = async () => {
     if (!orderToCancel) return;

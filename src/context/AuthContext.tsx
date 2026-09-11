@@ -38,8 +38,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const userEmail = user.email || '';
       const userName = user.displayName || user.email?.split('@')[0] || 'مستخدم';
-      const token = await user.getIdToken();
-      setApiAuth(user.uid, userEmail, token);
+      setApiAuth(user.uid, userEmail);
       const userProfile = await api.syncUser({
         id: user.uid,
         name: userName,
@@ -49,7 +48,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setProfile(userProfile);
     } catch (err) {
       console.error('Error syncing user with backend:', err);
-      // Safe fallback local profile if backend is temporarily unreachable: default to 'user'
+      // Fallback local profile if backend is temporarily unreachable
       const userEmail = user.email || '';
       const userName = user.displayName || user.email?.split('@')[0] || 'مستخدم';
       setProfile({
@@ -57,7 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         name: userName,
         email: userEmail,
         photo: user.photoURL || undefined,
-        role: 'user',
+        role: (user.email || '').toLowerCase() === 'ibraimbdo11@gmail.com' ? 'admin' : 'user',
         createdAt: new Date().toISOString(),
         lastLoginAt: new Date().toISOString(),
       });
@@ -119,7 +118,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     try {
       setIsLoggingOut(true);
-      await api.logoutSession();
       await fbSignOut(auth);
       setCurrentUser(null);
       setProfile(null);
