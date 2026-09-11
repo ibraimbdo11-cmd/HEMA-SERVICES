@@ -15,6 +15,7 @@ export const AudioMessagePlayer: React.FC<AudioMessagePlayerProps> = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(initialDuration || 0);
+  const [hasError, setHasError] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const formatTime = (secs: number) => {
@@ -30,6 +31,7 @@ export const AudioMessagePlayer: React.FC<AudioMessagePlayerProps> = ({
     if (!audio) return;
 
     const syncDuration = () => {
+      setHasError(false);
       if (audio.duration && !isNaN(audio.duration) && isFinite(audio.duration) && audio.duration > 0) {
         setDuration(audio.duration);
       } else if (initialDuration && initialDuration > 0) {
@@ -44,6 +46,7 @@ export const AudioMessagePlayer: React.FC<AudioMessagePlayerProps> = ({
     const handleEnded = () => {
       setIsPlaying(false);
       setCurrentTime(0);
+      if (audio) audio.currentTime = 0;
     };
 
     const handlePause = () => {
@@ -53,7 +56,13 @@ export const AudioMessagePlayer: React.FC<AudioMessagePlayerProps> = ({
 
     const handlePlay = () => {
       setIsPlaying(true);
+      setHasError(false);
       syncDuration();
+    };
+
+    const handleError = () => {
+      setIsPlaying(false);
+      setHasError(true);
     };
 
     audio.addEventListener('loadedmetadata', syncDuration);
@@ -63,8 +72,12 @@ export const AudioMessagePlayer: React.FC<AudioMessagePlayerProps> = ({
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('pause', handlePause);
     audio.addEventListener('play', handlePlay);
+    audio.addEventListener('error', handleError);
 
     return () => {
+      try {
+        audio.pause();
+      } catch {}
       audio.removeEventListener('loadedmetadata', syncDuration);
       audio.removeEventListener('durationchange', syncDuration);
       audio.removeEventListener('canplaythrough', syncDuration);
@@ -72,6 +85,7 @@ export const AudioMessagePlayer: React.FC<AudioMessagePlayerProps> = ({
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('pause', handlePause);
       audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('error', handleError);
     };
   }, [src, initialDuration]);
 
@@ -107,10 +121,20 @@ export const AudioMessagePlayer: React.FC<AudioMessagePlayerProps> = ({
     if (isPlaying) {
       audio.pause();
     } else {
+      if (currentTime >= effectiveDuration || audio.ended) {
+        audio.currentTime = 0;
+        setCurrentTime(0);
+      }
       audio
         .play()
-        .then(() => setIsPlaying(true))
-        .catch((err) => console.error('Audio play error:', err));
+        .then(() => {
+          setIsPlaying(true);
+          setHasError(false);
+        })
+        .catch((err) => {
+          console.error('Audio play error:', err);
+          setIsPlaying(false);
+        });
     }
   };
 

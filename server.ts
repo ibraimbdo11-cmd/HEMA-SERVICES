@@ -37,20 +37,46 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 }
 
 // Multer Storage Configuration
+const ALLOWED_UPLOAD_EXTS = new Set([
+  '.jpg', '.jpeg', '.png', '.gif', '.webp',
+  '.pdf', '.doc', '.docx', '.txt', '.rtf', '.odt',
+  '.xls', '.xlsx', '.csv', '.ppt', '.pptx',
+  '.zip', '.rar', '.7z', '.tar', '.gz',
+  '.webm', '.ogg', '.mp3', '.m4a', '.wav', '.aac',
+]);
+
+const DANGEROUS_UPLOAD_EXTS = new Set([
+  '.exe', '.bat', '.cmd', '.sh', '.php', '.phtml', '.php3', '.php4', '.php5', '.phps',
+  '.js', '.mjs', '.cjs', '.ts', '.py', '.rb', '.pl', '.cgi', '.jar', '.vbs', '.ps1',
+  '.msi', '.apk', '.com', '.scr', '.pif', '.hta', '.html', '.htm', '.asp', '.aspx',
+  '.jsp', '.svg', '.xml', '.xhtml',
+]);
+
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
     cb(null, UPLOADS_DIR);
   },
   filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname);
+    const rawExt = path.extname(file.originalname).toLowerCase().replace(/[^a-z0-9.]/g, '');
+    const safeExt = ALLOWED_UPLOAD_EXTS.has(rawExt) ? rawExt : '.bin';
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, `${uniqueSuffix}${ext}`);
+    cb(null, `${uniqueSuffix}${safeExt}`);
   },
 });
 
 const upload = multer({
   storage,
   limits: { fileSize: 15 * 1024 * 1024 }, // 15MB limit
+  fileFilter: (_req, file, cb) => {
+    const rawExt = path.extname(file.originalname).toLowerCase();
+    if (DANGEROUS_UPLOAD_EXTS.has(rawExt)) {
+      return cb(new Error('INVALID_FILE_DANGEROUS'));
+    }
+    if (!ALLOWED_UPLOAD_EXTS.has(rawExt)) {
+      return cb(new Error('INVALID_FILE_TYPE'));
+    }
+    cb(null, true);
+  },
 });
 
 interface UploadRecord {
@@ -663,37 +689,150 @@ setInterval(() => {
 // SECURE FILE UPLOAD & PROTECTED ATTACHMENT ACCESS
 // ----------------------------------------------------
 
-// 1. Upload file (Authenticated users only)
-app.post('/api/upload', requireAuth, upload.single('file') as any, (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'لم يتم استلام أي ملف' });
+// Periodic cleanup of abandoned temporary uploads older than 24 hours
+function cleanOrphanedUploads() {
+  try {
+    const db = readDB();
+    if (!db.uploads || !Array.isArray(db.uploads)) return;
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    const keptUploads: UploadRecord[] = [];
+
+    db.uploads.forEach((u) => {
+      const isUsedInMsg = (db.messages || []).some(
+        (m) => (m.fileUrl && m.fileUrl.includes(u.filename)) || (m.audioUrl && m.audioUrl.includes(u.filename))
+      );
+      const isUsedInOrder = (db.orders || []).some(
+        (o) => o.paymentProof && o.paymentProof.includes(u.filename)
+      );
+
+      const uploadTime = new Date(u.createdAt).getTime();
+      if (!isUsedInMsg && !isUsedInOrder && uploadTime < oneDayAgo) {
+        const filePath = path.join(UPLOADS_DIR, u.filename);
+        if (fs.existsSync(filePath)) {
+          try {
+            fs.unlinkSync(filePath);
+          } catch {}
+        }
+      } else {
+        keptUploads.push(u);
+      }
+    });
+
+    if (keptUploads.length !== db.uploads.length) {
+      db.uploads = keptUploads;
+      writeDB(db);
+    }
+  } catch (err) {
+    console.error('Error cleaning orphaned uploads:', err);
   }
+}
 
-  const fileUrl = `/uploads/${req.file.filename}`;
-  const db = readDB();
-  if (!db.uploads) db.uploads = [];
+// Run cleanup immediately and then every 6 hours
+cleanOrphanedUploads();
+setInterval(cleanOrphanedUploads, 6 * 60 * 60 * 1000);
 
-  db.uploads.push({
-    filename: req.file.filename,
-    originalName: req.file.originalname,
-    uploaderId: req.user!.uid,
-    size: req.file.size,
-    mimetype: req.file.mimetype,
-    createdAt: new Date().toISOString(),
-  });
+// 1. Upload file (Authenticated users only, validated and staged)
+app.post('/api/upload', requireAuth, (req, res) => {
+  upload.single('file')(req as any, res as any, (err: any) => {
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: 'حجم الملف يتجاوز الحد الأقصى المسموح به (15 ميجابايت)' });
+      }
+      if (err.message === 'INVALID_FILE_DANGEROUS') {
+        return res.status(400).json({ error: 'نوع الملف غير مسموح به لأسباب أمنية (الملفات التنفيذية والبرمجية محظورة)' });
+      }
+      if (err.message === 'INVALID_FILE_TYPE') {
+        return res.status(400).json({ error: 'نوع الملف غير مدعوم. يرجى اختيار صورة، ملف PDF، مستند، أرشيف أو تسجيل صوتي' });
+      }
+      return res.status(400).json({ error: err.message || 'فشل في رفع الملف' });
+    }
 
-  writeDB(db);
+    if (!req.file) {
+      return res.status(400).json({ error: 'لم يتم استلام أي ملف' });
+    }
 
-  res.json({
-    url: fileUrl,
-    filename: req.file.originalname,
-    storedFilename: req.file.filename,
-    mimetype: req.file.mimetype,
-    size: req.file.size,
+    const fileUrl = `/uploads/${req.file.filename}`;
+    const db = readDB();
+    if (!db.uploads) db.uploads = [];
+
+    db.uploads.push({
+      filename: req.file.filename,
+      originalName: req.file.originalname,
+      uploaderId: req.user!.uid,
+      size: req.file.size,
+      mimetype: req.file.mimetype,
+      createdAt: new Date().toISOString(),
+    });
+
+    writeDB(db);
+
+    res.json({
+      url: fileUrl,
+      filename: req.file.originalname,
+      storedFilename: req.file.filename,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+    });
   });
 });
 
-// 2. Protected Attachment Access Route (Replaces raw static /uploads directory)
+// 2. Delete temporary/staged upload (if user cancels before sending)
+app.delete('/api/upload/:filename', requireAuth, (req, res) => {
+  const filename = path.basename(req.params.filename);
+  const db = readDB();
+
+  const uploadIndex = (db.uploads || []).findIndex(
+    (u) => u.filename === filename && (u.uploaderId === req.user!.uid || req.user!.role === 'admin')
+  );
+
+  if (uploadIndex === -1) {
+    return res.status(404).json({ error: 'الملف غير موجود أو غير مصرح بإلغائه' });
+  }
+
+  // Ensure file is not already committed to a permanent message or order
+  const isUsedInMsg = (db.messages || []).some(
+    (m) => (m.fileUrl && m.fileUrl.includes(filename)) || (m.audioUrl && m.audioUrl.includes(filename))
+  );
+  const isUsedInOrder = (db.orders || []).some(
+    (o) => o.paymentProof && o.paymentProof.includes(filename)
+  );
+
+  if (isUsedInMsg || isUsedInOrder) {
+    return res.status(400).json({ error: 'لا يمكن حذف ملف مرتبط برسالة أو طلب تم إرساله بالفعل' });
+  }
+
+  const filePath = path.join(UPLOADS_DIR, filename);
+  if (fs.existsSync(filePath)) {
+    try {
+      fs.unlinkSync(filePath);
+    } catch (e) {
+      console.error('Error deleting staged file from disk:', e);
+    }
+  }
+
+  db.uploads.splice(uploadIndex, 1);
+  writeDB(db);
+
+  res.json({ success: true, message: 'تم إلغاء وحذف الملف المؤقت بنجاح' });
+});
+
+// Helper to determine original filename for Content-Disposition
+function getOriginalFileName(filename: string, db: DBStructure): string {
+  const uploadRecord = (db.uploads || []).find((u) => u.filename === filename);
+  if (uploadRecord && uploadRecord.originalName) return uploadRecord.originalName;
+
+  const msg = (db.messages || []).find(
+    (m) => (m.fileUrl && m.fileUrl.includes(filename)) || (m.audioUrl && m.audioUrl.includes(filename))
+  );
+  if (msg && msg.fileName) return msg.fileName;
+
+  const order = (db.orders || []).find((o) => o.paymentProof && o.paymentProof.includes(filename));
+  if (order && order.paymentProofFilename) return order.paymentProofFilename;
+
+  return filename;
+}
+
+// 3. Protected Attachment Access & Download Route (Replaces raw static /uploads directory)
 app.get('/uploads/:filename', async (req, res) => {
   // Verify authentication first to prevent filename probing
   const token = extractToken(req);
@@ -713,19 +852,30 @@ app.get('/uploads/:filename', async (req, res) => {
     return res.status(404).json({ error: 'الملف غير موجود' });
   }
 
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+
+  const db = readDB();
+  const isDownload = req.query.download === '1' || req.query.dl === '1';
+
   // Admin has access to review all customer receipts and attachments
   if (user.role === 'admin') {
+    if (isDownload) {
+      const originalName = getOriginalFileName(filename, db);
+      return res.download(filePath, originalName);
+    }
     return res.sendFile(filePath);
   }
 
   // Non-admin customer ownership verification:
-  const db = readDB();
-
   // A. Is this file the customer's payment proof?
   const isUserOrderFile = db.orders.some(
     (o) => o.userId === user.uid && o.paymentProof && o.paymentProof.includes(filename)
   );
   if (isUserOrderFile) {
+    if (isDownload) {
+      const originalName = getOriginalFileName(filename, db);
+      return res.download(filePath, originalName);
+    }
     return res.sendFile(filePath);
   }
 
@@ -738,6 +888,10 @@ app.get('/uploads/:filename', async (req, res) => {
     return false;
   });
   if (isUserMessageFile) {
+    if (isDownload) {
+      const originalName = getOriginalFileName(filename, db);
+      return res.download(filePath, originalName);
+    }
     return res.sendFile(filePath);
   }
 
@@ -746,11 +900,57 @@ app.get('/uploads/:filename', async (req, res) => {
     (u) => u.filename === filename && u.uploaderId === user.uid
   );
   if (isUserUpload) {
+    if (isDownload) {
+      const originalName = getOriginalFileName(filename, db);
+      return res.download(filePath, originalName);
+    }
     return res.sendFile(filePath);
   }
 
   // Access Denied: Customer A cannot access Customer B's private attachment
   return res.status(403).json({ error: 'غير مصرح بالوصول إلى هذا الملف' });
+});
+
+// Explicit download endpoint alias
+app.get('/api/attachments/:filename/download', async (req, res) => {
+  req.query.download = '1';
+  // Redirect internally to the protected route logic
+  const token = extractToken(req);
+  if (!token) {
+    return res.status(401).json({ error: 'يرجى تسجيل الدخول للوصول إلى هذا الملف' });
+  }
+  const user = await verifyTokenString(token);
+  if (!user) {
+    return res.status(401).json({ error: 'جلسة تسجيل الدخول غير صالحة' });
+  }
+  const filename = path.basename(req.params.filename);
+  const filePath = path.join(UPLOADS_DIR, filename);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'الملف غير موجود' });
+  }
+
+  const db = readDB();
+  const originalName = getOriginalFileName(filename, db);
+
+  if (user.role === 'admin') {
+    return res.download(filePath, originalName);
+  }
+
+  const isAllowed =
+    db.orders.some((o) => o.userId === user.uid && o.paymentProof && o.paymentProof.includes(filename)) ||
+    db.messages.some((m) => {
+      if ((m.fileUrl && m.fileUrl.includes(filename)) || (m.audioUrl && m.audioUrl.includes(filename))) {
+        const conv = db.conversations.find((c) => c.id === m.conversationId);
+        return conv && conv.userId === user.uid;
+      }
+      return false;
+    }) ||
+    (db.uploads || []).some((u) => u.filename === filename && u.uploaderId === user.uid);
+
+  if (isAllowed) {
+    return res.download(filePath, originalName);
+  }
+  return res.status(403).json({ error: 'غير مصرح بتحميل هذا الملف' });
 });
 
 // ----------------------------------------------------
@@ -1498,14 +1698,23 @@ app.get('/api/conversations/:id/messages', requireAuth, (req, res) => {
     return res.status(403).json({ error: 'غير مصرح بالوصول إلى هذه المحادثة' });
   }
 
-  let messages = db.messages.filter((m) => m.conversationId === convId);
+  let messages = db.messages
+    .filter((m) => m.conversationId === convId)
+    .sort((a, b) => {
+      const diff = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      if (diff !== 0) return diff;
+      return a.id.localeCompare(b.id);
+    });
 
   // Pagination support
   const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : undefined;
   const before = req.query.before as string;
 
   if (before) {
-    const beforeIdx = messages.findIndex((m) => m.id === before || m.createdAt === before);
+    let beforeIdx = messages.findIndex((m) => m.id === before);
+    if (beforeIdx === -1) {
+      beforeIdx = messages.findIndex((m) => m.createdAt === before);
+    }
     if (beforeIdx !== -1) {
       messages = messages.slice(0, beforeIdx);
     }

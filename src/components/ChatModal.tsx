@@ -23,7 +23,23 @@ import {
   Play,
   Pause,
   Package,
+  Copy,
+  Check,
+  ArrowDown,
+  Upload,
+  Eye,
+  FileArchive,
+  FileSpreadsheet,
 } from 'lucide-react';
+import {
+  mergeAndSortMessages,
+  copyTextToClipboard,
+  isNearBottom,
+  formatFileSize,
+  validateAttachmentFile,
+  downloadAttachment,
+  getFileCategory,
+} from '../lib/chatUtils';
 
 interface ChatModalProps {
   isOpen: boolean;
@@ -49,6 +65,14 @@ export const ChatModal: React.FC<ChatModalProps> = ({
   const [uploadStatusText, setUploadStatusText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const markReadTimerRef = useRef<any>(null);
+
+  // Pagination & Smart Scroll State
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasNewMessagesBelow, setHasNewMessagesBelow] = useState(false);
+  const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const activeConvIdRef = useRef<string | null>(null);
 
   const scheduleMarkAsRead = (convId: string, delay = 800) => {
     if (markReadTimerRef.current) clearTimeout(markReadTimerRef.current);
@@ -117,6 +141,10 @@ export const ChatModal: React.FC<ChatModalProps> = ({
   const [msgToDelete, setMsgToDelete] = useState<string | null>(null);
   const [deletingMsg, setDeletingMsg] = useState(false);
 
+  // Desktop Drag & Drop and Image Viewer states
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const [viewingImage, setViewingImage] = useState<{ url: string; name?: string } | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -134,6 +162,9 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     setError(null);
     setEditingMessage(null);
     setReplyingToMessage(null);
+    setHasMore(false);
+    setLoadingOlder(false);
+    setHasNewMessagesBelow(false);
   }, [currentUser?.uid]);
 
   // Format bytes to readable size
@@ -145,8 +176,75 @@ export const ChatModal: React.FC<ChatModalProps> = ({
   };
 
   // Scroll to bottom
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (smooth = true) => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({
+        top: scrollContainerRef.current.scrollHeight,
+        behavior: smooth ? 'smooth' : 'auto',
+      });
+    }
+  };
+
+  // Load older messages (Pagination)
+  const loadOlderMessages = async () => {
+    if (loadingOlder || !hasMore || messages.length === 0 || !conversation) return;
+    const firstMsg = messages[0];
+    if (!firstMsg) return;
+
+    setLoadingOlder(true);
+    const container = scrollContainerRef.current;
+    const prevScrollHeight = container ? container.scrollHeight : 0;
+    const prevScrollTop = container ? container.scrollTop : 0;
+
+    try {
+      const res = await api.getMessagesWithMeta(conversation.id, {
+        limit: 25,
+        before: firstMsg.id,
+      });
+
+      if (res.messages.length === 0) {
+        setHasMore(false);
+      } else {
+        setHasMore(res.hasMore);
+        setMessages((prev) => mergeAndSortMessages(prev, res.messages));
+
+        // Preserve scroll position with zero jump
+        requestAnimationFrame(() => {
+          if (container) {
+            const newScrollHeight = container.scrollHeight;
+            container.scrollTop = prevScrollTop + (newScrollHeight - prevScrollHeight);
+          }
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load older messages:', err);
+    } finally {
+      setLoadingOlder(false);
+    }
+  };
+
+  // Handle scroll container events
+  const handleScroll = () => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    if (isNearBottom(container, 100)) {
+      setHasNewMessagesBelow(false);
+    }
+
+    if (container.scrollTop < 60 && hasMore && !loadingOlder) {
+      loadOlderMessages();
+    }
+  };
+
+  // Copy message text
+  const handleCopyMessage = async (msg: MessageItem) => {
+    if (!msg.text) return;
+    const ok = await copyTextToClipboard(msg.text);
+    if (ok) {
+      setCopiedMsgId(msg.id);
+      setTimeout(() => setCopiedMsgId((prev) => (prev === msg.id ? null : prev)), 2000);
+    }
   };
 
   // Initialize conversation and setup Realtime SSE
@@ -184,14 +282,21 @@ export const ChatModal: React.FC<ChatModalProps> = ({
         }
 
         if (!isMounted) return;
+        activeConvIdRef.current = conv.id;
         setConversation(conv);
 
-        // Fetch existing messages
-        const msgs = await api.getMessages(conv.id);
+        // Fetch existing messages with pagination
+        const res = await api.getMessagesWithMeta(conv.id, { limit: 25 });
         if (isMounted) {
-          setMessages(msgs);
-          setTimeout(scrollToBottom, 100);
-          const hasUnread = msgs.some((m) => m.senderRole === 'admin' && !m.readAt);
+          setMessages(res.messages);
+          setHasMore(res.hasMore);
+          // Scroll to bottom on initial conversation open
+          requestAnimationFrame(() => {
+            if (scrollContainerRef.current) {
+              scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+            }
+          });
+          const hasUnread = res.messages.some((m) => m.senderRole === 'admin' && !m.readAt);
           if (hasUnread && isOpen && !document.hidden) {
             scheduleMarkAsRead(conv.id, 800);
           }
@@ -214,16 +319,24 @@ export const ChatModal: React.FC<ChatModalProps> = ({
             // Strict isolation check: ignore events not belonging to this canonical conversation
             if (targetConvId && targetConvId !== conv.id) return;
 
-            setMessages((prev) => {
-              if (prev.some((m) => m.id === newMsg.id)) return prev;
-              const next = [...prev, newMsg];
-              return next.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-            });
-            setTimeout(scrollToBottom, 50);
-            if (newMsg.senderRole === 'admin') {
-              if (isOpen && !document.hidden) {
-                scheduleMarkAsRead(conv.id, 1200);
+            setMessages((prev) => mergeAndSortMessages(prev, [newMsg]));
+
+            const container = scrollContainerRef.current;
+            const nearBottom = container ? isNearBottom(container, 120) : true;
+
+            if (nearBottom) {
+              requestAnimationFrame(() => {
+                if (container) {
+                  container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+                }
+              });
+              if (newMsg.senderRole === 'admin') {
+                if (isOpen && !document.hidden) {
+                  scheduleMarkAsRead(conv.id, 1200);
+                }
               }
+            } else {
+              setHasNewMessagesBelow(true);
             }
           },
           onMessageUpdated: (updatedMsg, eventConvId) => {
@@ -342,10 +455,6 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     };
   }, [stagedFile, recordedAudioPreview]);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
   // Handle typing debounce and throttle
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
@@ -369,26 +478,34 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     }
   };
 
-  // Stage File or Image for Preview before sending
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Stage File or Image for Preview before sending with strict security validation
+  const stageSelectedFile = (file: File) => {
+    const validation = validateAttachmentFile(file);
+    if (!validation.valid) {
+      setError(validation.error || 'الملف المختار غير صالح');
+      return;
+    }
 
     if (stagedFile?.previewUrl) {
       URL.revokeObjectURL(stagedFile.previewUrl);
     }
 
-    const isImg = file.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|svg)$/i.test(file.name);
-    const previewUrl = isImg ? URL.createObjectURL(file) : undefined;
+    const previewUrl = validation.isImage ? URL.createObjectURL(file) : undefined;
 
     setStagedFile({
       file,
       name: file.name,
       size: file.size,
-      isImage: isImg,
+      isImage: validation.isImage,
       previewUrl,
     });
+    setError(null);
+  };
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    stageSelectedFile(file);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -398,6 +515,31 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     }
     setStagedFile(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // Desktop Drag & Drop handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDraggingFile) setIsDraggingFile(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setIsDraggingFile(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingFile(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      stageSelectedFile(file);
+    }
   };
 
   // Unified Send Message (Text, Attachment with Text, or Quoted Reply)
@@ -418,10 +560,8 @@ export const ChatModal: React.FC<ChatModalProps> = ({
         }
       : undefined;
 
-    setInputText('');
-    setStagedFile(null);
-    setReplyingToMessage(null);
     setSending(true);
+    setError(null);
 
     if (userTypingTimerRef.current) clearTimeout(userTypingTimerRef.current);
     lastTypingSentRef.current = 0;
@@ -466,12 +606,19 @@ export const ChatModal: React.FC<ChatModalProps> = ({
         orderNumber: activeOrderContext.orderNumber,
       });
 
-      setMessages((prev) => {
-        if (prev.some((m) => m.id === msg.id)) return prev;
-        return [...prev, msg];
+      // Clear form only on successful delivery
+      setInputText('');
+      setStagedFile(null);
+      setReplyingToMessage(null);
+
+      setMessages((prev) => mergeAndSortMessages(prev, [msg]));
+
+      // Scroll to bottom on user's own sent message
+      requestAnimationFrame(() => {
+        scrollToBottom();
       });
     } catch (err: any) {
-      setError(err.message || 'فشل في إرسال الرسالة');
+      setError(err.message || 'فشل في إرسال الرسالة، يرجى المحاولة مرة أخرى');
     } finally {
       setSending(false);
       setUploadStatusText(null);
@@ -480,6 +627,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
 
   // Message Edit Handlers
   const handleStartEdit = (msg: MessageItem) => {
+    setReplyingToMessage(null);
     setEditingMessage(msg);
     setEditText(msg.text || '');
   };
@@ -627,11 +775,11 @@ export const ChatModal: React.FC<ChatModalProps> = ({
         orderId: activeOrderContext.orderId,
         orderNumber: activeOrderContext.orderNumber,
       });
-      setMessages((prev) => {
-        if (prev.some((m) => m.id === msg.id)) return prev;
-        return [...prev, msg];
-      });
+      setMessages((prev) => mergeAndSortMessages(prev, [msg]));
       handleDiscardAudioPreview();
+      requestAnimationFrame(() => {
+        scrollToBottom();
+      });
     } catch (err: any) {
       setError(err.message || 'فشل في إرسال التسجيل الصوتي');
     } finally {
@@ -651,7 +799,22 @@ export const ChatModal: React.FC<ChatModalProps> = ({
       }}
     >
       {/* Mobile: Full screen. Computer/Desktop: Left half of screen */}
-      <div className="w-full md:w-1/2 lg:w-1/2 h-full bg-[#0d121c] border-r border-white/[0.08] shadow-2xl flex flex-col overflow-hidden text-right">
+      <div
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className="relative w-full md:w-1/2 lg:w-1/2 h-full bg-[#0d121c] border-r border-white/[0.08] shadow-2xl flex flex-col overflow-hidden text-right"
+      >
+        {/* Desktop Drag & Drop Visual Overlay */}
+        {isDraggingFile && (
+          <div className="absolute inset-0 z-50 bg-[#0d121c]/92 border-2 border-dashed border-emerald-500 flex flex-col items-center justify-center gap-3 backdrop-blur-sm pointer-events-none animate-in fade-in">
+            <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+              <Upload className="w-8 h-8 animate-bounce" />
+            </div>
+            <p className="text-sm font-bold text-slate-100 font-cairo">أفلت الملف هنا للمعاينة قبل الإرسال</p>
+            <p className="text-xs text-slate-400 font-cairo">يدعم الصور والمستندات بحد أقصى 15 ميجابايت</p>
+          </div>
+        )}
         {/* Header - Site logo & live presence indicator & close button */}
         <div className="px-4 py-3 bg-[#121824] border-b border-white/[0.06] flex items-center justify-between shrink-0">
           {/* Logo with Site Name */}
@@ -731,7 +894,26 @@ export const ChatModal: React.FC<ChatModalProps> = ({
         )}
 
         {/* Messages Body */}
-        <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-[#080b11]">
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          id="chat-messages-scroll-area"
+          className="flex-1 p-4 overflow-y-auto overflow-x-hidden space-y-3 bg-[#080b11] relative"
+        >
+          {/* Top Pagination Loading Indicator */}
+          {loadingOlder && (
+            <div className="flex items-center justify-center gap-2 py-2 text-xs text-emerald-400 font-cairo bg-slate-900/60 rounded-xl border border-white/[0.05]">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <span>جاري تحميل الرسائل السابقة...</span>
+            </div>
+          )}
+
+          {!hasMore && messages.length >= 25 && (
+            <div className="text-center py-2 text-[11px] text-slate-500 font-cairo border-b border-white/[0.04]">
+              <span>بداية المحادثة</span>
+            </div>
+          )}
+
           {loading ? (
             <div className="h-full flex items-center justify-center text-xs text-slate-500 gap-2">
               <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
@@ -754,8 +936,11 @@ export const ChatModal: React.FC<ChatModalProps> = ({
               const isMine = msg.senderId === currentUser?.uid;
               const isAdminMsg = msg.senderRole === 'admin';
               const isDeleted = msg.isDeleted || msg.text === 'تم حذف هذه الرسالة';
-              const canDelete = isMine || isAdmin;
+              // Strictly allow deletion and editing only on the user's OWN messages!
+              const canDelete = isMine && !isDeleted;
               const canEdit = isMine && !isDeleted && msg.type === 'text';
+              const canCopy = !isDeleted && Boolean(msg.text);
+              const canReply = !isDeleted;
 
               return (
                 <div
@@ -775,7 +960,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                   </div>
 
                   <div className="flex items-center gap-1.5 max-w-[90%]">
-                    {/* Actions Toolbar: Reply, Edit, Delete */}
+                    {/* Actions Toolbar: Reply, Copy, Edit, Delete */}
                     {!isDeleted && (
                       <div
                         className={`opacity-60 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center gap-1 shrink-0 ${
@@ -783,14 +968,35 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                         }`}
                       >
                         {/* Reply Button */}
-                        <button
-                          type="button"
-                          onClick={() => setReplyingToMessage(msg)}
-                          title="رد على الرسالة"
-                          className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-emerald-400 transition-colors"
-                        >
-                          <Reply className="w-3.5 h-3.5" />
-                        </button>
+                        {canReply && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReplyingToMessage(msg);
+                              setEditingMessage(null);
+                            }}
+                            title="رد على الرسالة"
+                            className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-emerald-400 transition-colors"
+                          >
+                            <Reply className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+
+                        {/* Copy Button */}
+                        {canCopy && (
+                          <button
+                            type="button"
+                            onClick={() => handleCopyMessage(msg)}
+                            title="نسخ نص الرسالة"
+                            className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-emerald-400 transition-colors relative"
+                          >
+                            {copiedMsgId === msg.id ? (
+                              <Check className="w-3.5 h-3.5 text-emerald-400" />
+                            ) : (
+                              <Copy className="w-3.5 h-3.5" />
+                            )}
+                          </button>
+                        )}
 
                         {/* Edit Button (Text messages by author only) */}
                         {canEdit && (
@@ -804,7 +1010,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                           </button>
                         )}
 
-                        {/* Delete Button */}
+                        {/* Delete Button (Author only) */}
                         {canDelete && (
                           <button
                             type="button"
@@ -826,7 +1032,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                       </div>
                     ) : (
                       <div
-                        className={`rounded-2xl p-3.5 text-sm sm:text-base leading-relaxed shadow-sm flex-1 font-cairo font-medium ${
+                        className={`rounded-2xl p-3.5 text-sm sm:text-base leading-relaxed shadow-sm flex-1 font-cairo font-medium select-text break-words [overflow-wrap:anywhere] ${
                           isMine
                             ? 'bg-emerald-500 text-slate-950 rounded-tl-sm'
                             : 'bg-[#121824] text-slate-200 border border-white/[0.07] rounded-tr-sm'
@@ -855,38 +1061,51 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                                 : 'bg-[#0a0e16] border-emerald-500 text-slate-300'
                             }`}
                           >
-                            <div className="font-bold text-[11px] opacity-90 mb-0.5">
-                              {msg.replyTo.senderName}
+                            <div className="font-bold text-[11px] opacity-90 mb-0.5 flex items-center gap-1">
+                              <Reply className="w-3 h-3 shrink-0" />
+                              <span>{msg.replyTo.senderName}</span>
                             </div>
                             <div className="truncate text-[11px] opacity-80">
-                              {msg.replyTo.text ||
+                              {msg.replyTo.text === 'تم حذف هذه الرسالة' || messages.find((m) => m.id === msg.replyTo?.id)?.isDeleted ? (
+                                <span className="italic opacity-70">تم حذف هذه الرسالة</span>
+                              ) : (
+                                msg.replyTo.text ||
                                 (msg.replyTo.type === 'image'
                                   ? '📷 صورة'
                                   : msg.replyTo.type === 'audio'
                                   ? '🎙️ رسالة صوتية'
-                                  : '📎 ملف مرفق')}
+                                  : '📎 ملف مرفق')
+                              )}
                             </div>
                           </div>
                         )}
 
                         {/* Text message or caption */}
                         {msg.text && (
-                          <p className="whitespace-pre-wrap font-cairo font-medium text-sm sm:text-base leading-relaxed">
+                          <p className="whitespace-pre-wrap font-cairo font-medium text-sm sm:text-base leading-relaxed break-words [overflow-wrap:anywhere]" dir="auto">
                             {msg.text}
                           </p>
                         )}
 
-                        {/* Image message with inline preview and dedicated download button */}
+                        {/* Image message with inline preview, lightbox trigger, and secure download */}
                         {(msg.type === 'image' || msg.isImage) && msg.fileUrl && (
                           <div className="space-y-2 min-w-[200px] max-w-sm mt-2">
-                            <div className="rounded-xl overflow-hidden bg-black/40 border border-white/[0.1] max-h-64 flex items-center justify-center">
+                            <div
+                              onClick={() => setViewingImage({ url: msg.fileUrl!, name: msg.fileName })}
+                              className="group relative rounded-xl overflow-hidden bg-black/40 border border-white/[0.1] max-h-64 flex items-center justify-center cursor-pointer"
+                              title="اضغط لعرض الصورة بالحجم الكامل"
+                            >
                               <img
                                 src={msg.fileUrl}
                                 alt={msg.fileName || 'صورة'}
-                                className="w-full max-h-64 object-contain rounded-xl"
+                                className="w-full max-h-64 object-contain rounded-xl group-hover:scale-[1.02] transition-transform duration-200"
                                 referrerPolicy="no-referrer"
                                 loading="lazy"
                               />
+                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white text-xs font-cairo backdrop-blur-[2px]">
+                                <Eye className="w-4 h-4" />
+                                <span>عرض بالحجم الكامل</span>
+                              </div>
                             </div>
                             <div className="flex items-center justify-between gap-2 pt-1">
                               <div className="flex items-center gap-1.5 min-w-0">
@@ -900,12 +1119,10 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                                   </span>
                                 )}
                               </div>
-                              <a
-                                href={msg.fileUrl}
-                                download={msg.fileName || 'image.jpg'}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={`inline-flex items-center gap-1 py-1 px-2.5 rounded-lg text-[11px] font-bold transition-colors ${
+                              <button
+                                type="button"
+                                onClick={() => downloadAttachment(msg.fileUrl!, msg.fileName || 'image.jpg')}
+                                className={`inline-flex items-center gap-1 py-1 px-2.5 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
                                   isMine
                                     ? 'bg-slate-950 text-emerald-400 hover:bg-slate-900'
                                     : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400'
@@ -913,13 +1130,13 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                               >
                                 <Download className="w-3 h-3" />
                                 <span>تنزيل</span>
-                              </a>
+                              </button>
                             </div>
                           </div>
                         )}
 
-                        {/* Document / File */}
-                        {msg.type === 'file' && !msg.isImage && (
+                        {/* Document / File with dynamic category icon and secure download */}
+                        {msg.type === 'file' && !msg.isImage && msg.fileUrl && (
                           <div className="space-y-2 min-w-[200px] mt-2">
                             <div className="flex items-center gap-2.5">
                               <div
@@ -927,7 +1144,13 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                                   isMine ? 'bg-emerald-600 text-slate-950' : 'bg-[#172030] text-emerald-400 border border-white/[0.06]'
                                 }`}
                               >
-                                <FileText className="w-5 h-5" />
+                                {getFileCategory(msg.fileName) === 'sheet' ? (
+                                  <FileSpreadsheet className="w-5 h-5" />
+                                ) : getFileCategory(msg.fileName) === 'archive' ? (
+                                  <FileArchive className="w-5 h-5" />
+                                ) : (
+                                  <FileText className="w-5 h-5" />
+                                )}
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className={`font-bold truncate text-xs ${isMine ? 'text-slate-950' : 'text-slate-100'}`}>
@@ -941,12 +1164,10 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                               </div>
                             </div>
 
-                            <a
-                              href={msg.fileUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              download={msg.fileName || 'document'}
-                              className={`flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-colors ${
+                            <button
+                              type="button"
+                              onClick={() => downloadAttachment(msg.fileUrl!, msg.fileName || 'document')}
+                              className={`w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
                                 isMine
                                   ? 'bg-slate-950 text-emerald-400 hover:bg-slate-900'
                                   : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400'
@@ -954,7 +1175,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                             >
                               <Download className="w-3.5 h-3.5" />
                               <span>تحميل الملف</span>
-                            </a>
+                            </button>
                           </div>
                         )}
 
@@ -1089,6 +1310,24 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Floating New Messages Indicator */}
+        {hasNewMessagesBelow && (
+          <div className="relative flex justify-center w-full">
+            <button
+              type="button"
+              onClick={() => {
+                scrollToBottom();
+                setHasNewMessagesBelow(false);
+                if (conversation) scheduleMarkAsRead(conversation.id, 400);
+              }}
+              className="absolute -top-11 z-20 px-4 py-1.5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold shadow-lg shadow-emerald-500/25 flex items-center gap-1.5 transition-all cursor-pointer animate-bounce font-cairo"
+            >
+              <ArrowDown className="w-3.5 h-3.5" />
+              <span>رسائل جديدة</span>
+            </button>
           </div>
         )}
 
@@ -1323,6 +1562,51 @@ export const ChatModal: React.FC<ChatModalProps> = ({
           )}
         </div>
       </div>
+
+      {/* Fullscreen Lightbox Image Viewer */}
+      {viewingImage && (
+        <div
+          className="fixed inset-0 z-70 bg-black/92 backdrop-blur-md flex flex-col items-center justify-center p-4 animate-in fade-in select-none"
+          onClick={() => setViewingImage(null)}
+        >
+          <div
+            className="relative max-w-4xl max-h-[90vh] w-full flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-full flex items-center justify-between pb-3 text-slate-200">
+              <span className="text-sm font-bold truncate max-w-xs sm:max-w-md font-cairo">
+                {viewingImage.name || 'معاينة الصورة'}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => downloadAttachment(viewingImage.url, viewingImage.name || 'image.jpg')}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition-colors cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>تنزيل</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewingImage(null)}
+                  className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                  title="إغلاق"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="overflow-hidden rounded-2xl border border-white/[0.1] bg-black/50 shadow-2xl flex items-center justify-center">
+              <img
+                src={viewingImage.url}
+                alt={viewingImage.name || 'معاينة'}
+                className="max-w-full max-h-[75vh] object-contain rounded-2xl"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

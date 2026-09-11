@@ -230,6 +230,20 @@ export const api = {
     return res.json();
   },
 
+  async deleteUploadedFile(filename: string): Promise<{ success: boolean }> {
+    const cleanFilename = filename.split('/').pop() || filename;
+    const headers = await getAuthHeaders();
+    const res = await fetch(`/api/upload/${encodeURIComponent(cleanFilename)}`, {
+      method: 'DELETE',
+      headers,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'فشل في إلغاء الملف المؤقت');
+    }
+    return res.json();
+  },
+
   // Conversations & Chat
   async getConversations(): Promise<Conversation[]> {
     const headers = await getAuthHeaders();

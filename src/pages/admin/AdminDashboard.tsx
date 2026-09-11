@@ -33,12 +33,13 @@ import {
   Mic,
   Square,
   Send,
-  Loader2,
+  FileText,
+  Download,
   AlertCircle,
+  Loader2,
   Copy,
   Check,
   X,
-  FileText,
   Clock,
   Shield,
   Search,
@@ -47,11 +48,24 @@ import {
   ArrowDown,
   RotateCw,
   Image as ImageIcon,
-  Download,
   Ban,
   Reply,
+  Play,
+  Pause,
+  Eye,
+  FileArchive,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { AudioMessagePlayer } from '../../components/ui/AudioMessagePlayer';
+import {
+  mergeAndSortMessages,
+  copyTextToClipboard,
+  isNearBottom,
+  formatFileSize,
+  validateAttachmentFile,
+  downloadAttachment,
+  getFileCategory,
+} from '../../lib/chatUtils';
 
 interface AdminDashboardProps {
   onBackToHome: () => void;
@@ -106,10 +120,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
   const [recordSeconds, setRecordSeconds] = useState(0);
   const adminRecordingStartTimeRef = React.useRef<number>(0);
   const adminMessagesEndRef = React.useRef<HTMLDivElement>(null);
+  const adminScrollContainerRef = React.useRef<HTMLDivElement>(null);
   const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
   const audioChunksRef = React.useRef<Blob[]>([]);
   const timerRef = React.useRef<any>(null);
   const chatFileRef = React.useRef<HTMLInputElement>(null);
+
+  // Pagination & Smart Scroll Data for Admin Chat
+  const [adminHasMore, setAdminHasMore] = useState(false);
+  const [adminLoadingOlder, setAdminLoadingOlder] = useState(false);
+  const [adminHasNewMessagesBelow, setAdminHasNewMessagesBelow] = useState(false);
+  const [adminCopiedMsgId, setAdminCopiedMsgId] = useState<string | null>(null);
 
   // Realtime typing, reply and edit for Admin
   const [isClientTyping, setIsClientTyping] = useState(false);
@@ -121,6 +142,96 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
   const [adminEditingMsg, setAdminEditingMsg] = useState<MessageItem | null>(null);
   const [adminEditText, setAdminEditText] = useState('');
   const [savingAdminEdit, setSavingAdminEdit] = useState(false);
+
+  // Admin Attachment Staging & Voice Preview States (Parity with Customer Chat)
+  const [adminStagedFile, setAdminStagedFile] = useState<{
+    file: File;
+    name: string;
+    size: number;
+    isImage: boolean;
+    previewUrl?: string;
+  } | null>(null);
+  const [adminRecordedAudioPreview, setAdminRecordedAudioPreview] = useState<{
+    blob: Blob;
+    url: string;
+    duration: number;
+  } | null>(null);
+  const [adminIsPreviewAudioPlaying, setAdminIsPreviewAudioPlaying] = useState(false);
+  const adminPreviewAudioRef = React.useRef<HTMLAudioElement | null>(null);
+  const [adminIsDraggingFile, setAdminIsDraggingFile] = useState(false);
+  const [adminViewingImage, setAdminViewingImage] = useState<{ url: string; name?: string } | null>(null);
+  const [adminChatError, setAdminChatError] = useState<string | null>(null);
+
+  // Helper: Scroll admin chat to bottom
+  const scrollAdminToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    if (adminScrollContainerRef.current) {
+      adminScrollContainerRef.current.scrollTo({
+        top: adminScrollContainerRef.current.scrollHeight,
+        behavior,
+      });
+    }
+  };
+
+  // Helper: Copy message text with feedback
+  const handleCopyAdminMessage = async (msg: MessageItem) => {
+    if (!msg.text) return;
+    const ok = await copyTextToClipboard(msg.text);
+    if (ok) {
+      setAdminCopiedMsgId(msg.id);
+      setTimeout(() => setAdminCopiedMsgId(null), 2000);
+    }
+  };
+
+  // Helper: Load older messages for Admin Chat (Pagination)
+  const loadOlderAdminMessages = async () => {
+    if (!activeConversation || adminLoadingOlder || !adminHasMore || activeMessages.length === 0) return;
+    const container = adminScrollContainerRef.current;
+    if (!container) return;
+
+    const oldestMsg = activeMessages[0];
+    const prevScrollHeight = container.scrollHeight;
+    const prevScrollTop = container.scrollTop;
+
+    setAdminLoadingOlder(true);
+    try {
+      const res = await api.getMessagesWithMeta(activeConversation.id, {
+        limit: 25,
+        before: oldestMsg.createdAt,
+      });
+
+      if (res.messages.length > 0) {
+        setActiveMessages((prev) => mergeAndSortMessages(res.messages, prev));
+        setAdminHasMore(res.hasMore);
+
+        requestAnimationFrame(() => {
+          if (adminScrollContainerRef.current) {
+            const newScrollHeight = adminScrollContainerRef.current.scrollHeight;
+            adminScrollContainerRef.current.scrollTop = newScrollHeight - prevScrollHeight + prevScrollTop;
+          }
+        });
+      } else {
+        setAdminHasMore(false);
+      }
+    } catch (err) {
+      console.error('Failed to load older admin messages:', err);
+    } finally {
+      setAdminLoadingOlder(false);
+    }
+  };
+
+  // Helper: Handle Admin chat scroll for top pagination and bottom detection
+  const handleAdminScroll = () => {
+    const container = adminScrollContainerRef.current;
+    if (!container) return;
+
+    if (container.scrollTop <= 40 && adminHasMore && !adminLoadingOlder) {
+      loadOlderAdminMessages();
+    }
+
+    if (isNearBottom(container, 100)) {
+      setAdminHasNewMessagesBelow(false);
+    }
+  };
 
   // Format seconds to mm:ss
   const formatAudioDuration = (totalSeconds: number) => {
@@ -249,11 +360,20 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
         if (!isMounted) return;
         const targetConvId = convId || msg.conversationId;
         if (activeConversation && targetConvId === activeConversation.id) {
-          setActiveMessages((prev) => {
-            if (prev.some((m) => m.id === msg.id)) return prev;
-            return [...prev, msg].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-          });
+          const container = adminScrollContainerRef.current;
+          const userAtBottom = container ? isNearBottom(container, 100) : true;
+          const isFromSelf = msg.senderRole === 'admin';
+
+          setActiveMessages((prev) => mergeAndSortMessages(prev, [msg]));
           api.markConversationRead(activeConversation.id).catch(() => {});
+
+          if (isFromSelf || userAtBottom) {
+            requestAnimationFrame(() => {
+              scrollAdminToBottom('smooth');
+            });
+          } else {
+            setAdminHasNewMessagesBelow(true);
+          }
         }
         loadConversations();
       },
@@ -319,10 +439,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
         }
       }).catch(() => {});
 
-      api.getMessages(activeConversation.id).then((msgs) => {
+      api.getMessagesWithMeta(activeConversation.id, { limit: 25 }).then((res) => {
         if (isMounted) {
-          setActiveMessages(msgs);
+          setActiveMessages(res.messages);
+          setAdminHasMore(res.hasMore);
+          setAdminHasNewMessagesBelow(false);
           api.markConversationRead(activeConversation.id).catch(() => {});
+          requestAnimationFrame(() => {
+            scrollAdminToBottom('auto');
+          });
         }
       }).catch(console.error);
     } else {
@@ -344,11 +469,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
-
-  // Auto-scroll admin chat when active messages update
-  useEffect(() => {
-    adminMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [activeMessages]);
 
   if (!isAdmin) {
     return (
@@ -495,12 +615,76 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
     }
   };
 
-  // Send Admin Chat Message
+  // Stage Admin File or Image for Preview before sending with validation
+  const stageAdminFile = (file: File) => {
+    const validation = validateAttachmentFile(file);
+    if (!validation.valid) {
+      setAdminChatError(validation.error || 'الملف المختار غير صالح');
+      return;
+    }
+
+    if (adminStagedFile?.previewUrl) {
+      URL.revokeObjectURL(adminStagedFile.previewUrl);
+    }
+
+    const previewUrl = validation.isImage ? URL.createObjectURL(file) : undefined;
+    setAdminStagedFile({
+      file,
+      name: file.name,
+      size: file.size,
+      isImage: validation.isImage,
+      previewUrl,
+    });
+    setAdminChatError(null);
+  };
+
+  const handleAdminFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    stageAdminFile(file);
+    if (chatFileRef.current) chatFileRef.current.value = '';
+  };
+
+  const handleRemoveAdminStagedFile = () => {
+    if (adminStagedFile?.previewUrl) {
+      URL.revokeObjectURL(adminStagedFile.previewUrl);
+    }
+    setAdminStagedFile(null);
+    if (chatFileRef.current) chatFileRef.current.value = '';
+  };
+
+  // Admin Desktop Drag & Drop handlers
+  const handleAdminDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!adminIsDraggingFile) setAdminIsDraggingFile(true);
+  };
+
+  const handleAdminDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setAdminIsDraggingFile(false);
+  };
+
+  const handleAdminDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setAdminIsDraggingFile(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      stageAdminFile(file);
+    }
+  };
+
+  // Send Admin Chat Message (Unified Text, Staged Attachment with Caption, or Quoted Reply)
   const handleSendAdminMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!chatInput.trim() || !activeConversation || !currentUser || sendingMsg) return;
+    if ((!chatInput.trim() && !adminStagedFile) || !activeConversation || !currentUser || sendingMsg) return;
 
     const textToSend = chatInput.trim();
+    const fileToUpload = adminStagedFile;
     const replyRef = adminReplyingTo
       ? {
           id: adminReplyingTo.id,
@@ -525,22 +709,49 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
     }).catch(() => {});
 
     try {
+      let uploadedUrl: string | undefined;
+      let uploadedName: string | undefined;
+      let uploadedSize: number | undefined;
+      let isImg = false;
+
+      if (fileToUpload) {
+        setAdminChatUploadStatus(fileToUpload.isImage ? 'جاري رفع الصورة...' : 'جاري رفع الملف المرفق...');
+        const uploadRes = await api.uploadFile(fileToUpload.file, fileToUpload.name);
+        uploadedUrl = uploadRes.url;
+        uploadedName = fileToUpload.name;
+        uploadedSize = fileToUpload.size;
+        isImg = fileToUpload.isImage;
+      }
+
       const msg = await api.sendMessage(activeConversation.id, {
         senderId: currentUser.uid,
         senderName: 'إدارة HEMA SERVICES',
         senderRole: 'admin',
-        type: 'text',
-        text: textToSend,
+        type: fileToUpload ? (isImg ? 'image' : 'file') : 'text',
+        text: textToSend || undefined,
+        fileUrl: uploadedUrl,
+        fileName: uploadedName,
+        fileSize: uploadedSize,
+        isImage: isImg,
         replyTo: replyRef,
         orderId: adminReplyingTo?.orderId || activeConversation.orderId,
         orderNumber: adminReplyingTo?.orderNumber || activeConversation.orderNumber,
       });
-      setActiveMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
+
+      setActiveMessages((prev) => mergeAndSortMessages(prev, [msg]));
+      if (fileToUpload) {
+        handleRemoveAdminStagedFile();
+      }
       loadConversations();
-    } catch (err) {
+      requestAnimationFrame(() => {
+        scrollAdminToBottom('smooth');
+      });
+    } catch (err: any) {
       console.error(err);
+      setAdminChatError(err.message || 'فشل في إرسال الرسالة');
     } finally {
       setSendingMsg(false);
+      setAdminChatUploadStatus(null);
     }
   };
 
@@ -554,7 +765,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
       setAdminEditingMsg(null);
       setAdminEditText('');
     } catch (err: any) {
-      alert(err.message || 'فشل في تعديل الرسالة');
+      setAdminChatError(err.message || 'فشل في تعديل الرسالة');
     } finally {
       setSavingAdminEdit(false);
     }
@@ -588,39 +799,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
     }
   };
 
-  // Admin File upload in chat
-  const handleAdminFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !activeConversation || !currentUser) return;
-
-    const isImg = file.type.startsWith('image/') || /\.(jpe?g|png|webp|gif|svg)$/i.test(file.name);
-
-    try {
-      setSendingMsg(true);
-      setAdminChatUploadStatus(isImg ? 'جاري رفع الصورة...' : 'جاري رفع الملف المرفق...');
-      const res = await api.uploadFile(file, file.name);
-      const msg = await api.sendMessage(activeConversation.id, {
-        senderId: currentUser.uid,
-        senderName: 'إدارة HEMA SERVICES',
-        senderRole: 'admin',
-        type: isImg ? 'image' : 'file',
-        fileUrl: res.url,
-        fileName: file.name,
-        fileSize: file.size,
-        isImage: isImg,
-      });
-      setActiveMessages((prev) => [...prev, msg]);
-      loadConversations();
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setSendingMsg(false);
-      setAdminChatUploadStatus(null);
-      if (chatFileRef.current) chatFileRef.current.value = '';
-    }
-  };
-
-  // Admin Voice recording
+  // Admin Voice recording with preview before sending
   const startAdminRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -635,7 +814,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
       const startTime = Date.now();
       adminRecordingStartTimeRef.current = startTime;
 
-      recorder.onstop = async () => {
+      recorder.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         stream.getTracks().forEach((t) => t.stop());
 
@@ -644,27 +823,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
           Math.round((Date.now() - (adminRecordingStartTimeRef.current || startTime)) / 1000)
         );
 
-        if (audioBlob.size > 100 && activeConversation && currentUser) {
-          try {
-            setSendingMsg(true);
-            setAdminChatUploadStatus('جاري معالجة وإرسال التسجيل الصوتي...');
-            const res = await api.uploadFile(audioBlob, `admin-voice-${Date.now()}.webm`);
-            const msg = await api.sendMessage(activeConversation.id, {
-              senderId: currentUser.uid,
-              senderName: 'إدارة HEMA SERVICES',
-              senderRole: 'admin',
-              type: 'audio',
-              audioUrl: res.url,
-              audioDuration: durationSeconds,
-            });
-            setActiveMessages((prev) => [...prev, msg]);
-            loadConversations();
-          } catch (err) {
-            console.error(err);
-          } finally {
-            setSendingMsg(false);
-            setAdminChatUploadStatus(null);
-          }
+        if (audioBlob.size > 100) {
+          const previewUrl = URL.createObjectURL(audioBlob);
+          setAdminRecordedAudioPreview({
+            blob: audioBlob,
+            url: previewUrl,
+            duration: durationSeconds,
+          });
         }
       };
 
@@ -677,7 +842,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
       }, 250);
     } catch (err) {
       console.error(err);
-      alert('يرجى السماح بالوصول إلى الميكروفون');
+      setAdminChatError('يرجى السماح بالوصول إلى الميكروفون لتسجيل رسالة صوتية');
     }
   };
 
@@ -686,6 +851,64 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       if (timerRef.current) clearInterval(timerRef.current);
+    }
+  };
+
+  const handleDiscardAdminAudioPreview = () => {
+    if (adminRecordedAudioPreview?.url) {
+      URL.revokeObjectURL(adminRecordedAudioPreview.url);
+    }
+    setAdminRecordedAudioPreview(null);
+    setAdminIsPreviewAudioPlaying(false);
+  };
+
+  const handleSendAdminAudioPreview = async () => {
+    if (!adminRecordedAudioPreview || !activeConversation || !currentUser || sendingMsg) return;
+
+    const replyRef = adminReplyingTo
+      ? {
+          id: adminReplyingTo.id,
+          senderName: adminReplyingTo.senderName,
+          type: adminReplyingTo.type,
+          text: adminReplyingTo.text,
+          fileName: adminReplyingTo.fileName,
+          isImage: adminReplyingTo.isImage,
+        }
+      : undefined;
+
+    setAdminReplyingTo(null);
+    setSendingMsg(true);
+    setAdminChatUploadStatus('جاري إرسال التسجيل الصوتي...');
+
+    try {
+      const res = await api.uploadFile(
+        adminRecordedAudioPreview.blob,
+        `admin-voice-${Date.now()}.webm`
+      );
+      const msg = await api.sendMessage(activeConversation.id, {
+        senderId: currentUser.uid,
+        senderName: 'إدارة HEMA SERVICES',
+        senderRole: 'admin',
+        type: 'audio',
+        audioUrl: res.url,
+        audioDuration: adminRecordedAudioPreview.duration,
+        replyTo: replyRef,
+        orderId: adminReplyingTo?.orderId || activeConversation.orderId,
+        orderNumber: adminReplyingTo?.orderNumber || activeConversation.orderNumber,
+      });
+
+      setActiveMessages((prev) => mergeAndSortMessages(prev, [msg]));
+      handleDiscardAdminAudioPreview();
+      loadConversations();
+      requestAnimationFrame(() => {
+        scrollAdminToBottom('smooth');
+      });
+    } catch (err: any) {
+      console.error(err);
+      setAdminChatError(err.message || 'فشل في إرسال التسجيل الصوتي');
+    } finally {
+      setSendingMsg(false);
+      setAdminChatUploadStatus(null);
     }
   };
 
@@ -1401,12 +1624,25 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                 </div>
               </div>
 
-              {/* Right Area: Active conversation view */}
+              {/* Right Area: Active conversation view with drag & drop */}
               <div
-                className={`flex-1 flex flex-col h-full min-h-0 min-w-0 bg-[#080b11] ${
+                onDragOver={handleAdminDragOver}
+                onDragLeave={handleAdminDragLeave}
+                onDrop={handleAdminDrop}
+                className={`relative flex-1 flex flex-col h-full min-h-0 min-w-0 bg-[#080b11] ${
                   !activeConversation ? 'hidden md:flex' : 'flex'
                 }`}
               >
+                {/* Desktop Drag & Drop Visual Overlay */}
+                {adminIsDraggingFile && (
+                  <div className="absolute inset-0 z-50 bg-[#080b11]/92 border-2 border-dashed border-emerald-500 flex flex-col items-center justify-center gap-3 backdrop-blur-sm pointer-events-none animate-in fade-in">
+                    <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+                      <Upload className="w-8 h-8 animate-bounce" />
+                    </div>
+                    <p className="text-sm font-bold text-slate-100 font-cairo">أفلت الملف هنا للمعاينة قبل الإرسال</p>
+                    <p className="text-xs text-slate-400 font-cairo">يدعم الصور والمستندات بحد أقصى 15 ميجابايت</p>
+                  </div>
+                )}
                 {activeConversation ? (
                   <>
                     {/* Header with customer identity & mobile back button */}
@@ -1451,7 +1687,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                         )}
                         <button
                           type="button"
-                          onClick={() => adminMessagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                          onClick={() => {
+                            setAdminHasNewMessagesBelow(false);
+                            scrollAdminToBottom('smooth');
+                          }}
                           className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-emerald-400 transition-colors text-xs flex items-center gap-1 border border-slate-700"
                           title="النزول لأسفل الرسائل"
                         >
@@ -1464,8 +1703,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                     {/* Message history with min-h-0 and auto-scroll */}
                     <div
                       id="admin-messages-scroll-area"
-                      className="flex-1 min-h-0 p-3 sm:p-4 overflow-y-auto space-y-3"
+                      ref={adminScrollContainerRef}
+                      onScroll={handleAdminScroll}
+                      className="flex-1 min-h-0 p-3 sm:p-4 overflow-y-auto space-y-3 relative"
                     >
+                      {/* Loading older messages indicator */}
+                      {adminLoadingOlder && (
+                        <div className="flex justify-center items-center py-2 text-xs text-slate-400 gap-1.5">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
+                          <span>جاري تحميل الرسائل السابقة...</span>
+                        </div>
+                      )}
+                      {!adminHasMore && activeMessages.length > 15 && (
+                        <div className="text-center py-2 text-[10px] text-slate-500 font-medium">
+                          — بداية المحادثة —
+                        </div>
+                      )}
+
                       {activeMessages.map((msg) => {
                         const isFromAdmin = msg.senderRole === 'admin';
                         const isDeleted = msg.isDeleted || msg.text === 'تم حذف هذه الرسالة';
@@ -1480,13 +1734,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                             </span>
 
                             <div className="flex items-center gap-1.5 max-w-[85%]">
-                              {/* Message actions (reply, edit, delete) */}
+                              {/* Message actions (reply, copy, edit, delete) */}
                               {!isDeleted && (
                                 <div
                                   className={`flex items-center gap-0.5 opacity-60 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0 ${
                                     isFromAdmin ? 'order-first' : 'order-last'
                                   }`}
                                 >
+                                  {msg.type === 'text' && msg.text && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopyAdminMessage(msg)}
+                                      title="نسخ النص"
+                                      className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-500 hover:text-emerald-400 transition-colors"
+                                    >
+                                      {adminCopiedMsgId === msg.id ? (
+                                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                      ) : (
+                                        <Copy className="w-3.5 h-3.5" />
+                                      )}
+                                    </button>
+                                  )}
                                   <button
                                     type="button"
                                     onClick={() => setAdminReplyingTo(msg)}
@@ -1508,14 +1776,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                                       <Pencil className="w-3.5 h-3.5" />
                                     </button>
                                   )}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteAdminMessage(msg.id)}
-                                    title="حذف الرسالة"
-                                    className="p-1.5 rounded-lg hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-colors"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+                                  {isFromAdmin && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteAdminMessage(msg.id)}
+                                      title="حذف الرسالة"
+                                      className="p-1.5 rounded-lg hover:bg-red-500/20 text-slate-500 hover:text-red-400 transition-colors"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  )}
                                 </div>
                               )}
 
@@ -1571,7 +1841,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                                   {/* Text */}
                                   {msg.type === 'text' && (
                                     <div>
-                                      <p className="whitespace-pre-wrap">{msg.text}</p>
+                                      <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] select-text">{msg.text}</p>
                                       {msg.isEdited && (
                                         <span
                                           className={`text-[9px] block mt-1 opacity-70 ${
@@ -1587,26 +1857,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                                   {/* Image message with preview and download button */}
                                   {(msg.type === 'image' || msg.isImage) && msg.fileUrl && (
                                     <div className="space-y-2 min-w-[190px] max-w-sm">
-                                      <div className="rounded-xl overflow-hidden bg-black/40 border border-white/[0.08] max-h-56 flex items-center justify-center">
+                                      <div
+                                        onClick={() => setAdminViewingImage({ url: msg.fileUrl!, name: msg.fileName })}
+                                        className="group relative rounded-xl overflow-hidden bg-black/40 border border-white/[0.08] max-h-56 flex items-center justify-center cursor-pointer"
+                                        title="اضغط لعرض الصورة بالحجم الكامل"
+                                      >
                                         <img
                                           src={msg.fileUrl}
                                           alt={msg.fileName || 'صورة'}
-                                          className="w-full max-h-56 object-contain rounded-xl"
+                                          className="w-full max-h-56 object-contain rounded-xl group-hover:scale-[1.02] transition-transform duration-200"
                                           referrerPolicy="no-referrer"
                                           loading="lazy"
                                         />
+                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white text-xs font-cairo backdrop-blur-[2px]">
+                                          <Eye className="w-4 h-4" />
+                                          <span>عرض بالحجم الكامل</span>
+                                        </div>
                                       </div>
                                       <div className="flex items-center justify-between gap-2 pt-1">
                                         <span className={`text-[11px] truncate ${isFromAdmin ? 'text-slate-950 font-bold' : 'text-slate-300'}`}>
                                           {msg.fileName || 'صورة'}
                                           {Boolean(msg.fileSize) && ` (${formatFileSize(msg.fileSize)})`}
                                         </span>
-                                        <a
-                                          href={msg.fileUrl}
-                                          download={msg.fileName || 'image.jpg'}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className={`inline-flex items-center gap-1 py-1 px-2.5 rounded-lg text-[11px] font-bold ${
+                                        <button
+                                          type="button"
+                                          onClick={() => downloadAttachment(msg.fileUrl!, msg.fileName || 'image.jpg')}
+                                          className={`inline-flex items-center gap-1 py-1 px-2.5 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
                                             isFromAdmin
                                               ? 'bg-slate-950 text-emerald-400 hover:bg-slate-900'
                                               : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400'
@@ -1614,17 +1890,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                                         >
                                           <Download className="w-3 h-3" />
                                           <span>تنزيل</span>
-                                        </a>
+                                        </button>
                                       </div>
                                     </div>
                                   )}
 
-                                  {/* File message with icon, name, size and download button */}
-                                  {msg.type === 'file' && !msg.isImage && (
+                                  {/* File message with category icon, name, size and download button */}
+                                  {msg.type === 'file' && !msg.isImage && msg.fileUrl && (
                                     <div className="space-y-1.5 min-w-[190px]">
                                       <div className="flex items-center gap-2">
                                         <div className={`p-2 rounded-lg ${isFromAdmin ? 'bg-emerald-700 text-slate-950' : 'bg-slate-800 text-emerald-400'}`}>
-                                          <FileText className="w-4 h-4 shrink-0" />
+                                          {getFileCategory(msg.fileName) === 'sheet' ? (
+                                            <FileSpreadsheet className="w-4 h-4 shrink-0" />
+                                          ) : getFileCategory(msg.fileName) === 'archive' ? (
+                                            <FileArchive className="w-4 h-4 shrink-0" />
+                                          ) : (
+                                            <FileText className="w-4 h-4 shrink-0" />
+                                          )}
                                         </div>
                                         <div className="min-w-0 flex-1">
                                           <p className={`truncate font-semibold text-xs ${isFromAdmin ? 'text-slate-950' : 'text-slate-100'}`}>
@@ -1637,12 +1919,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                                           )}
                                         </div>
                                       </div>
-                                      <a
-                                        href={msg.fileUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        download={msg.fileName || 'document'}
-                                        className={`flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-colors ${
+                                      <button
+                                        type="button"
+                                        onClick={() => downloadAttachment(msg.fileUrl!, msg.fileName || 'document')}
+                                        className={`w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
                                           isFromAdmin
                                             ? 'bg-slate-950 text-emerald-400 hover:bg-slate-900'
                                             : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400'
@@ -1650,7 +1930,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                                       >
                                         <Download className="w-3.5 h-3.5" />
                                         <span>تحميل الملف</span>
-                                      </a>
+                                      </button>
                                     </div>
                                   )}
 
@@ -1698,11 +1978,46 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                           <span>{activeConversation.userName} يكتب الآن...</span>
                         </div>
                       )}
+
+                      {/* Floating New Messages Indicator */}
+                      {adminHasNewMessagesBelow && (
+                        <div className="sticky bottom-2 flex justify-center z-10 pointer-events-none">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAdminHasNewMessagesBelow(false);
+                              scrollAdminToBottom('smooth');
+                            }}
+                            className="pointer-events-auto bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-3.5 py-1.5 rounded-full shadow-lg text-xs font-bold flex items-center gap-1.5 transition-all transform hover:scale-105 active:scale-95 animate-bounce"
+                          >
+                            <ArrowDown className="w-3.5 h-3.5" />
+                            <span>رسائل جديدة بالأسفل</span>
+                          </button>
+                        </div>
+                      )}
+
                       <div ref={adminMessagesEndRef} />
                     </div>
 
                     {/* Input Bar */}
                     <div className="p-2.5 sm:p-3 bg-slate-900 border-t border-slate-800 shrink-0">
+                      {/* Chat error banner */}
+                      {adminChatError && (
+                        <div className="mb-2 p-2 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-xs flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <AlertCircle className="w-4 h-4 shrink-0" />
+                            <span className="truncate">{adminChatError}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setAdminChatError(null)}
+                            className="p-1 hover:bg-red-500/20 rounded-md shrink-0 cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+
                       {/* Upload status banner */}
                       {adminChatUploadStatus && (
                         <div className="mb-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs flex items-center gap-2">
@@ -1738,6 +2053,117 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                         </div>
                       )}
 
+                      {/* Staged File / Image Preview Banner */}
+                      {adminStagedFile && (
+                        <div className="mb-2 p-2.5 rounded-xl bg-slate-950 border border-emerald-500/40 flex items-center justify-between gap-3 shadow-lg">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {adminStagedFile.isImage && adminStagedFile.previewUrl ? (
+                              <img
+                                src={adminStagedFile.previewUrl}
+                                alt="معاينة"
+                                className="w-12 h-12 rounded-lg object-cover border border-white/[0.1] shrink-0"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
+                                {getFileCategory(adminStagedFile.name) === 'sheet' ? (
+                                  <FileSpreadsheet className="w-5 h-5" />
+                                ) : getFileCategory(adminStagedFile.name) === 'archive' ? (
+                                  <FileArchive className="w-5 h-5" />
+                                ) : (
+                                  <FileText className="w-5 h-5" />
+                                )}
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-slate-100 truncate">
+                                {adminStagedFile.name}
+                              </p>
+                              <p className="text-[11px] text-slate-400">
+                                {formatFileSize(adminStagedFile.size)} • جاهز للإرسال
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleRemoveAdminStagedFile}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0 cursor-pointer"
+                            title="إلغاء المرفق"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Recorded Audio Staged Preview Banner */}
+                      {adminRecordedAudioPreview && (
+                        <div className="mb-2 flex items-center justify-between p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!adminPreviewAudioRef.current) return;
+                                if (adminIsPreviewAudioPlaying) {
+                                  adminPreviewAudioRef.current.pause();
+                                  setAdminIsPreviewAudioPlaying(false);
+                                } else {
+                                  adminPreviewAudioRef.current.play();
+                                  setAdminIsPreviewAudioPlaying(true);
+                                }
+                              }}
+                              className="w-8 h-8 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center justify-center font-bold transition-transform active:scale-95 cursor-pointer shadow-md shadow-emerald-500/20 shrink-0"
+                            >
+                              {adminIsPreviewAudioPlaying ? (
+                                <Pause className="w-4 h-4" />
+                              ) : (
+                                <Play className="w-4 h-4 ml-0.5" />
+                              )}
+                            </button>
+                            <audio
+                              ref={adminPreviewAudioRef}
+                              src={adminRecordedAudioPreview.url}
+                              onEnded={() => setAdminIsPreviewAudioPlaying(false)}
+                              className="hidden"
+                            />
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs font-bold text-emerald-300 font-cairo">
+                                  معاينة التسجيل الصوتي
+                                </span>
+                                <span className="text-[11px] font-mono text-emerald-400/90 font-payment-digits">
+                                  ({formatAudioDuration(adminRecordedAudioPreview.duration)})
+                                </span>
+                              </div>
+                              <span className="text-[10px] text-slate-400 font-cairo block truncate">
+                                استمع لتسجيلك قبل إرساله للعميل
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={handleDiscardAdminAudioPreview}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                              title="حذف التسجيل"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleSendAdminAudioPreview}
+                              disabled={sendingMsg}
+                              className="flex items-center gap-1.5 py-1 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition-all disabled:opacity-50 cursor-pointer shadow-md shadow-emerald-500/20"
+                            >
+                              {sendingMsg ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <Send className="w-3.5 h-3.5 -rotate-90" />
+                              )}
+                              <span>إرسال</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                       {isRecording ? (
                         <div className="flex items-center justify-between p-2 rounded-xl bg-red-950/40 border border-red-500/40">
                           <div className="flex items-center gap-2 text-red-400 min-w-0">
@@ -1747,26 +2173,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                             </span>
                           </div>
                           <button
+                            type="button"
                             onClick={stopAdminRecording}
-                            className="h-8 px-3 rounded-lg bg-red-500 hover:bg-red-600 text-white font-bold text-xs shrink-0"
+                            className="h-8 px-3 rounded-lg bg-red-500 hover:bg-red-600 text-white font-bold text-xs shrink-0 flex items-center gap-1.5 transition-colors cursor-pointer shadow-md shadow-red-500/20"
                           >
-                            إيقاف وإرسال
+                            <Square className="w-3.5 h-3.5 fill-current" />
+                            <span>إيقاف والمعاينة</span>
                           </button>
                         </div>
-                      ) : (
+                      ) : !adminRecordedAudioPreview ? (
                         <form onSubmit={handleSendAdminMessage} className="flex items-center gap-1.5 sm:gap-2 w-full min-w-0">
                           <input
                             type="file"
                             ref={chatFileRef}
-                            onChange={handleAdminFileUpload}
+                            onChange={handleAdminFileSelect}
                             className="hidden"
                           />
                           <button
                             type="button"
                             onClick={() => chatFileRef.current?.click()}
                             disabled={sendingMsg}
-                            title="إرفاق ملف"
-                            className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-emerald-400 transition-colors shrink-0 flex items-center justify-center border border-white/[0.06]"
+                            title="إرفاق ملف أو صورة"
+                            className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-emerald-400 transition-colors shrink-0 flex items-center justify-center border border-white/[0.06] cursor-pointer"
                           >
                             <Paperclip className="w-4 h-4" />
                           </button>
@@ -1775,7 +2203,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                             onClick={startAdminRecording}
                             disabled={sendingMsg}
                             title="تسجيل صوتي"
-                            className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-emerald-400 transition-colors shrink-0 flex items-center justify-center border border-white/[0.06]"
+                            className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-emerald-400 transition-colors shrink-0 flex items-center justify-center border border-white/[0.06] cursor-pointer"
                           >
                             <Mic className="w-4 h-4" />
                           </button>
@@ -1783,15 +2211,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                             type="text"
                             value={chatInput}
                             onChange={(e) => handleAdminChatInputChange(e.target.value)}
-                            placeholder="اكتب ردك للعميل..."
+                            placeholder={adminStagedFile ? 'اكتب تعليقًا على الملف المرفق...' : 'اكتب ردك للعميل...'}
                             disabled={sendingMsg}
                             className="flex-1 min-w-0 h-9 sm:h-10 bg-slate-950 border border-slate-800 focus:border-emerald-500 rounded-lg px-3 text-xs text-slate-100 placeholder-slate-500 outline-none"
                           />
                           <button
                             type="submit"
-                            disabled={!chatInput.trim() || sendingMsg}
+                            disabled={(!chatInput.trim() && !adminStagedFile) || sendingMsg}
                             id="admin-send-chat-btn"
-                            className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-slate-950 font-bold transition-all shrink-0 flex items-center justify-center"
+                            className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-slate-950 font-bold transition-all shrink-0 flex items-center justify-center cursor-pointer shadow-md shadow-emerald-500/20"
                             title="إرسال"
                           >
                             {sendingMsg ? (
@@ -1801,7 +2229,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                             )}
                           </button>
                         </form>
-                      )}
+                      ) : null}
                     </div>
 
                     {/* Admin Message Edit Modal */}
@@ -2228,6 +2656,52 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
                 تأكيد الرفض
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen Lightbox Image Viewer for Admin Chat */}
+      {adminViewingImage && (
+        <div
+          onClick={() => setAdminViewingImage(null)}
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4 sm:p-6 animate-in fade-in"
+        >
+          <div className="absolute top-4 right-4 sm:top-6 sm:right-6 flex items-center gap-2 z-10">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                downloadAttachment(adminViewingImage.url, adminViewingImage.name || 'image.jpg');
+              }}
+              className="p-2.5 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-200 hover:text-white transition-colors cursor-pointer border border-white/[0.1] shadow-lg"
+              title="تنزيل الصورة"
+            >
+              <Download className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setAdminViewingImage(null)}
+              className="p-2.5 rounded-full bg-slate-800/80 hover:bg-slate-700 text-slate-200 hover:text-white transition-colors cursor-pointer border border-white/[0.1] shadow-lg"
+              title="إغلاق"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-4xl max-h-[85vh] flex flex-col items-center gap-3"
+          >
+            <img
+              src={adminViewingImage.url}
+              alt={adminViewingImage.name || 'صورة مكبرة'}
+              className="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl border border-white/[0.1]"
+              referrerPolicy="no-referrer"
+            />
+            {adminViewingImage.name && (
+              <p className="text-xs text-slate-300 font-mono truncate max-w-md">
+                {adminViewingImage.name}
+              </p>
+            )}
           </div>
         </div>
       )}
