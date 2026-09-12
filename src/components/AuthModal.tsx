@@ -203,10 +203,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <input
                   type="text"
                   required
+                  disabled={loading}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="أدخل اسمك الكامل"
-                  className="w-full h-11 sm:h-12 bg-[#121824] border border-white/[0.08] focus:border-emerald-500/80 focus:ring-2 focus:ring-emerald-500/20 rounded-xl pr-10 pl-3.5 text-sm font-medium font-cairo text-slate-100 placeholder:text-slate-500 outline-none transition-all"
+                  className="w-full h-11 sm:h-12 bg-[#121824] border border-white/[0.08] focus:border-emerald-500/80 focus:ring-2 focus:ring-emerald-500/20 rounded-xl pr-10 pl-3.5 text-sm font-medium font-cairo text-slate-100 placeholder:text-slate-500 outline-none transition-all disabled:opacity-60"
                 />
                 <User className="w-4 h-4 text-slate-500 absolute top-3.5 sm:top-4 right-3.5" />
               </div>
@@ -221,10 +222,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               <input
                 type="email"
                 required
+                disabled={loading}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@example.com"
-                className="w-full h-11 sm:h-12 bg-[#121824] border border-white/[0.08] focus:border-emerald-500/80 focus:ring-2 focus:ring-emerald-500/20 rounded-xl pr-10 pl-3.5 text-sm font-medium font-cairo text-slate-100 placeholder:text-slate-500 outline-none transition-all"
+                className="w-full h-11 sm:h-12 bg-[#121824] border border-white/[0.08] focus:border-emerald-500/80 focus:ring-2 focus:ring-emerald-500/20 rounded-xl pr-10 pl-3.5 text-sm font-medium font-cairo text-slate-100 placeholder:text-slate-500 outline-none transition-all disabled:opacity-60"
               />
               <Mail className="w-4 h-4 text-slate-500 absolute top-3.5 sm:top-4 right-3.5" />
             </div>
@@ -239,11 +241,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 {mode === 'login' && (
                   <button
                     type="button"
+                    disabled={loading}
                     onClick={() => {
                       setError(null);
                       setMode('forgot');
                     }}
-                    className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors font-bold font-cairo hover:underline cursor-pointer"
+                    className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors font-bold font-cairo hover:underline cursor-pointer disabled:opacity-50"
                   >
                     نسيت كلمة المرور؟
                   </button>
@@ -253,16 +256,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
+                  disabled={loading}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full h-11 sm:h-12 bg-[#121824] border border-white/[0.08] focus:border-emerald-500/80 focus:ring-2 focus:ring-emerald-500/20 rounded-xl pr-10 pl-10 text-sm font-medium font-cairo text-slate-100 placeholder:text-slate-500 outline-none transition-all"
+                  className="w-full h-11 sm:h-12 bg-[#121824] border border-white/[0.08] focus:border-emerald-500/80 focus:ring-2 focus:ring-emerald-500/20 rounded-xl pr-10 pl-10 text-sm font-medium font-cairo text-slate-100 placeholder:text-slate-500 outline-none transition-all disabled:opacity-60"
                 />
                 <Lock className="w-4 h-4 text-slate-500 absolute top-3.5 sm:top-4 right-3.5" />
                 <button
                   type="button"
+                  disabled={loading}
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute top-3.5 sm:top-4 left-3 text-slate-400 hover:text-slate-200 transition-colors p-0.5 cursor-pointer"
+                  className="absolute top-3.5 sm:top-4 left-3 text-slate-400 hover:text-slate-200 transition-colors p-0.5 cursor-pointer disabled:opacity-50"
                   title={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
                   aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
                 >
@@ -321,16 +326,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <input
                   type={showConfirmPassword ? 'text' : 'password'}
                   required
+                  disabled={loading}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full h-11 sm:h-12 bg-[#121824] border border-white/[0.08] focus:border-emerald-500/80 focus:ring-2 focus:ring-emerald-500/20 rounded-xl pr-10 pl-10 text-sm font-medium font-cairo text-slate-100 placeholder:text-slate-500 outline-none transition-all"
+                  className="w-full h-11 sm:h-12 bg-[#121824] border border-white/[0.08] focus:border-emerald-500/80 focus:ring-2 focus:ring-emerald-500/20 rounded-xl pr-10 pl-10 text-sm font-medium font-cairo text-slate-100 placeholder:text-slate-500 outline-none transition-all disabled:opacity-60"
                 />
                 <Lock className="w-4 h-4 text-slate-500 absolute top-3.5 sm:top-4 right-3.5" />
                 <button
                   type="button"
+                  disabled={loading}
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className="absolute top-3.5 sm:top-4 left-3 text-slate-400 hover:text-slate-200 transition-colors p-0.5 cursor-pointer"
+                  className="absolute top-3.5 sm:top-4 left-3 text-slate-400 hover:text-slate-200 transition-colors p-0.5 cursor-pointer disabled:opacity-50"
                   title={showConfirmPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
                   aria-label={showConfirmPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
                 >
@@ -403,11 +410,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               ليس لديك حساب؟{' '}
               <button
                 type="button"
+                disabled={loading}
                 onClick={() => {
                   setError(null);
                   setMode('register');
                 }}
-                className="text-emerald-400 hover:text-emerald-300 hover:underline font-bold mr-1 cursor-pointer"
+                className="text-emerald-400 hover:text-emerald-300 hover:underline font-bold mr-1 cursor-pointer disabled:opacity-50"
               >
                 إنشاء حساب جديد
               </button>
@@ -419,11 +427,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               لديك حساب بالفعل؟{' '}
               <button
                 type="button"
+                disabled={loading}
                 onClick={() => {
                   setError(null);
                   setMode('login');
                 }}
-                className="text-emerald-400 hover:text-emerald-300 hover:underline font-bold mr-1 cursor-pointer"
+                className="text-emerald-400 hover:text-emerald-300 hover:underline font-bold mr-1 cursor-pointer disabled:opacity-50"
               >
                 تسجيل الدخول
               </button>
@@ -435,11 +444,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               تذكرت كلمة المرور؟{' '}
               <button
                 type="button"
+                disabled={loading}
                 onClick={() => {
                   setError(null);
                   setMode('login');
                 }}
-                className="text-emerald-400 hover:text-emerald-300 hover:underline font-bold cursor-pointer"
+                className="text-emerald-400 hover:text-emerald-300 hover:underline font-bold cursor-pointer disabled:opacity-50"
               >
                 العودة لتسجيل الدخول
               </button>

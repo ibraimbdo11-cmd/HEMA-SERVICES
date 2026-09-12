@@ -137,6 +137,8 @@ export const ServiceOrderModal: React.FC<ServiceOrderModalProps> = ({
     e.preventDefault();
     setValidationError(null);
 
+    if (submitting || uploading) return;
+
     if (!currentUser) {
       onOpenAuth?.();
       return;

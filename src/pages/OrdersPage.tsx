@@ -35,6 +35,8 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
   const [orders, setOrders] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeOrder, setActiveOrder] = useState<OrderItem | null>(null);
+  const [filterTab, setFilterTab] = useState<'all' | 'pending' | 'in_progress' | 'completed' | 'cancelled'>('all');
+  const [previewReceiptUrl, setPreviewReceiptUrl] = useState<string | null>(null);
 
   // Cancellation state
   const [orderToCancel, setOrderToCancel] = useState<OrderItem | null>(null);
@@ -98,20 +100,126 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
     }
   };
 
+  const pendingCount = orders.filter((o) => o.status === 'pending_review').length;
+  const inProgressCount = orders.filter((o) => o.status === 'accepted' || o.status === 'in_progress').length;
+  const completedCount = orders.filter((o) => o.status === 'completed').length;
+  const cancelledCount = orders.filter((o) => o.status === 'cancelled' || o.status === 'rejected').length;
+
+  const filteredOrders = orders.filter((o) => {
+    if (filterTab === 'pending') return o.status === 'pending_review';
+    if (filterTab === 'in_progress') return o.status === 'accepted' || o.status === 'in_progress';
+    if (filterTab === 'completed') return o.status === 'completed';
+    if (filterTab === 'cancelled') return o.status === 'cancelled' || o.status === 'rejected';
+    return true;
+  });
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 text-right">
       {/* Title */}
-      <div className="flex items-center justify-between gap-4 mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-slate-100 flex items-center gap-2.5 tracking-tight">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-100 flex items-center gap-2.5 tracking-tight font-cairo">
             <Package className="w-7 h-7 text-emerald-400" />
             <span>الطلبات</span>
           </h1>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1">
+          <p className="text-xs sm:text-sm text-slate-400 mt-1 font-medium font-cairo">
             متابعة حالة طلباتك البرمجية، إدارتها أو إلغائها ومراجعة مراحل التنفيذ.
           </p>
         </div>
+
+        {orders.length > 0 && (
+          <button
+            onClick={onExploreServices}
+            id="orders-new-request-btn"
+            className="self-start sm:self-auto h-10 px-4 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/25 text-xs font-bold font-cairo transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+          >
+            <span>طلب خدمة جديدة</span>
+          </button>
+        )}
       </div>
+
+      {/* Filter Tabs Bar (if orders exist) */}
+      {!loading && orders.length > 0 && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-4 scrollbar-none text-xs font-bold font-cairo">
+          <button
+            onClick={() => setFilterTab('all')}
+            className={`h-9 px-3.5 rounded-xl transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+              filterTab === 'all'
+                ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                : 'bg-[#0e1320] text-slate-400 hover:text-slate-200 border border-white/[0.06]'
+            }`}
+          >
+            <span>الكل</span>
+            <span className={`px-1.5 py-0.2 rounded-md text-[11px] ${filterTab === 'all' ? 'bg-slate-950/20 text-slate-950' : 'bg-white/[0.06] text-slate-400'}`}>
+              {orders.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setFilterTab('pending')}
+            className={`h-9 px-3.5 rounded-xl transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+              filterTab === 'pending'
+                ? 'bg-amber-500 text-slate-950 shadow-sm'
+                : 'bg-[#0e1320] text-slate-400 hover:text-slate-200 border border-white/[0.06]'
+            }`}
+          >
+            <span>قيد المراجعة</span>
+            {pendingCount > 0 && (
+              <span className={`px-1.5 py-0.2 rounded-md text-[11px] ${filterTab === 'pending' ? 'bg-slate-950/20 text-slate-950' : 'bg-amber-500/20 text-amber-300'}`}>
+                {pendingCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setFilterTab('in_progress')}
+            className={`h-9 px-3.5 rounded-xl transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+              filterTab === 'in_progress'
+                ? 'bg-blue-500 text-slate-950 shadow-sm'
+                : 'bg-[#0e1320] text-slate-400 hover:text-slate-200 border border-white/[0.06]'
+            }`}
+          >
+            <span>قيد التنفيذ</span>
+            {inProgressCount > 0 && (
+              <span className={`px-1.5 py-0.2 rounded-md text-[11px] ${filterTab === 'in_progress' ? 'bg-slate-950/20 text-slate-950' : 'bg-blue-500/20 text-blue-300'}`}>
+                {inProgressCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setFilterTab('completed')}
+            className={`h-9 px-3.5 rounded-xl transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+              filterTab === 'completed'
+                ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                : 'bg-[#0e1320] text-slate-400 hover:text-slate-200 border border-white/[0.06]'
+            }`}
+          >
+            <span>مكتملة</span>
+            {completedCount > 0 && (
+              <span className={`px-1.5 py-0.2 rounded-md text-[11px] ${filterTab === 'completed' ? 'bg-slate-950/20 text-slate-950' : 'bg-emerald-500/20 text-emerald-300'}`}>
+                {completedCount}
+              </span>
+            )}
+          </button>
+
+          {cancelledCount > 0 && (
+            <button
+              onClick={() => setFilterTab('cancelled')}
+              className={`h-9 px-3.5 rounded-xl transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                filterTab === 'cancelled'
+                  ? 'bg-rose-500 text-slate-100 shadow-sm'
+                  : 'bg-[#0e1320] text-slate-400 hover:text-slate-200 border border-white/[0.06]'
+              }`}
+            >
+              <span>ملغاة ومرفوضة</span>
+              <span className={`px-1.5 py-0.2 rounded-md text-[11px] ${filterTab === 'cancelled' ? 'bg-slate-950/20 text-slate-100' : 'bg-rose-500/20 text-rose-300'}`}>
+                {cancelledCount}
+              </span>
+            </button>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <div className="space-y-4">
@@ -120,52 +228,64 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
           ))}
         </div>
       ) : orders.length === 0 ? (
-        <div className="py-20 px-6 bg-[#0d121c] border border-white/[0.07] rounded-2xl text-center space-y-5 max-w-lg mx-auto">
+        <div className="py-20 px-6 bg-[#0d121c] border border-white/[0.07] rounded-3xl text-center space-y-5 max-w-lg mx-auto shadow-xl">
           <div className="w-14 h-14 rounded-2xl bg-[#121824] border border-white/[0.08] flex items-center justify-center text-slate-400 mx-auto">
             <Package className="w-7 h-7" />
           </div>
           <div className="space-y-1.5">
-            <h3 className="text-base font-semibold text-slate-100">
+            <h3 className="text-base font-bold text-slate-100 font-cairo">
               لا توجد طلبات حتى الآن
             </h3>
-            <p className="text-xs text-slate-400 leading-relaxed">
+            <p className="text-xs text-slate-400 leading-relaxed font-medium font-cairo">
               لم تقم بطلب أي خدمة بعد. تصفح الخدمات واختر ما يناسب فكرتك الرقمية.
             </p>
           </div>
           <button
             onClick={onExploreServices}
             id="orders-empty-explore-btn"
-            className="h-11 px-6 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:translate-y-px text-slate-950 font-semibold text-xs sm:text-sm transition-all shadow-sm"
+            className="h-11 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-slate-950 font-extrabold text-xs sm:text-sm font-cairo transition-all shadow-md shadow-emerald-500/20 cursor-pointer"
           >
             استعرض الخدمات
           </button>
         </div>
+      ) : filteredOrders.length === 0 ? (
+        <div className="py-14 px-6 bg-[#0d121c] border border-white/[0.07] rounded-3xl text-center space-y-4 max-w-md mx-auto">
+          <p className="text-xs sm:text-sm text-slate-400 font-medium font-cairo">
+            لا توجد طلبات تطابق التصنيف المختار.
+          </p>
+          <button
+            onClick={() => setFilterTab('all')}
+            className="h-9 px-4 rounded-xl bg-[#121824] hover:bg-[#172030] text-emerald-400 border border-emerald-500/30 text-xs font-bold font-cairo cursor-pointer"
+          >
+            عرض كافة الطلبات
+          </button>
+        </div>
       ) : (
         <div className="grid grid-cols-1 gap-4">
-          {orders.map((order) => {
+          {filteredOrders.map((order) => {
             const canCancel = order.status === 'pending_review' || order.status === 'accepted';
 
             return (
               <div
                 key={order.id}
                 id={`order-card-${order.id}`}
-                className="p-5 rounded-2xl bg-[#0d121c] border border-white/[0.07] hover:border-white/[0.12] transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
+                className="p-5 sm:p-6 rounded-3xl bg-[#0d121c] border border-white/[0.07] hover:border-white/[0.14] transition-all flex flex-col md:flex-row md:items-center justify-between gap-5 shadow-lg shadow-black/20"
               >
-                <div className="flex items-start gap-4">
-                  <div className="w-11 h-11 rounded-xl bg-[#121824] border border-white/[0.07] flex items-center justify-center text-emerald-400 shrink-0">
-                    <Package className="w-5 h-5" />
+                <div className="flex items-start gap-4 min-w-0">
+                  <div className="w-12 h-12 rounded-2xl bg-[#121824] border border-white/[0.08] flex items-center justify-center text-emerald-400 shrink-0 shadow-inner">
+                    <Package className="w-6 h-6" />
                   </div>
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 min-w-0">
                     <div className="flex items-center gap-2.5 flex-wrap">
-                      <span className="font-mono text-xs text-slate-400 font-semibold tracking-wider">
+                      <span className="font-mono text-xs text-slate-400 font-bold tracking-wider">
                         {order.orderNumber}
                       </span>
                       <StatusBadge status={order.status} />
                     </div>
-                    <h3 className="text-sm sm:text-base font-semibold text-slate-100">
+                    <h3 className="text-base sm:text-lg font-bold text-slate-100 font-cairo truncate">
                       {order.serviceNameSnapshot}
                     </h3>
-                    <div className="flex items-center gap-3 text-xs text-slate-400 pt-0.5">
+                    <div className="flex items-center gap-3 text-xs text-slate-400 pt-0.5 flex-wrap font-medium">
                       <span className="flex items-center gap-1.5">
                         <Calendar className="w-3.5 h-3.5 text-slate-500" />
                         <span>
@@ -177,30 +297,48 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                         </span>
                       </span>
                       <span className="text-slate-600">•</span>
-                      <span className="font-semibold text-emerald-400 font-mono">
+                      <span className="font-extrabold text-emerald-400 font-mono text-sm">
                         {order.price.toLocaleString()} ج.م
                       </span>
+                      {order.senderWalletNumber && (
+                        <>
+                          <span className="text-slate-600">•</span>
+                          <span className="text-slate-400 font-mono text-[11px]">
+                            {order.senderWalletNumber}
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
 
                 {/* Actions */}
                 <div className="flex items-center gap-2.5 self-end md:self-center flex-wrap pt-2 md:pt-0">
+                  <button
+                    onClick={() => onOpenSupportForOrder(order.id, order.orderNumber)}
+                    id={`chat-order-btn-${order.id}`}
+                    className="h-10 px-3.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/25 text-xs font-bold font-cairo transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                    title="محادثة الدعم لهذا الطلب"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    <span>محادثة الطلب</span>
+                  </button>
+
                   {canCancel && (
                     <button
                       onClick={() => setOrderToCancel(order)}
                       id={`cancel-order-btn-${order.id}`}
-                      className="h-10 px-3.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-300 border border-red-500/20 text-xs font-semibold transition-all flex items-center gap-1.5"
+                      className="h-10 px-3.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-300 border border-red-500/20 text-xs font-bold font-cairo transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                     >
                       <Ban className="w-3.5 h-3.5" />
-                      <span>إلغاء الطلب</span>
+                      <span>إلغاء</span>
                     </button>
                   )}
 
                   <button
                     onClick={() => setActiveOrder(order)}
                     id={`view-order-details-${order.id}`}
-                    className="h-10 px-4 rounded-xl bg-[#121824] hover:bg-emerald-500 hover:text-slate-950 text-slate-200 text-xs font-semibold transition-all border border-white/[0.08]"
+                    className="h-10 px-4 rounded-xl bg-[#121824] hover:bg-[#172030] text-slate-200 hover:text-white text-xs font-bold font-cairo transition-all border border-white/[0.08] cursor-pointer whitespace-nowrap"
                   >
                     عرض التفاصيل
                   </button>
@@ -340,22 +478,21 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                   <img
                     src={activeOrder.paymentProof}
                     alt="إثبات التحويل"
-                    className="w-16 h-16 rounded-lg object-cover border border-white/[0.08] bg-[#07090e] cursor-pointer hover:opacity-85"
-                    onClick={() => window.open(activeOrder.paymentProof, '_blank')}
+                    className="w-16 h-16 rounded-xl object-cover border border-white/[0.08] bg-[#07090e] cursor-pointer hover:opacity-85 transition-opacity"
+                    onClick={() => setPreviewReceiptUrl(activeOrder.paymentProof)}
                   />
                   <div className="flex-1 min-w-0">
                     <span className="text-xs text-slate-300 font-medium block truncate">
                       {activeOrder.paymentProofFilename || 'صورة التحويل'}
                     </span>
-                    <a
-                      href={activeOrder.paymentProof}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-emerald-400 hover:underline inline-flex items-center gap-1 mt-1 font-medium"
+                    <button
+                      type="button"
+                      onClick={() => setPreviewReceiptUrl(activeOrder.paymentProof)}
+                      className="text-xs text-emerald-400 hover:underline inline-flex items-center gap-1 mt-1 font-bold cursor-pointer"
                     >
                       <ExternalLink className="w-3.5 h-3.5" />
-                      <span>معاينة كاملة</span>
-                    </a>
+                      <span>معاينة الإيصال</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -370,7 +507,7 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                     setActiveOrder(null);
                   }}
                   id="open-order-chat-btn"
-                  className="h-10 px-5 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:translate-y-px text-slate-950 font-semibold text-xs sm:text-sm transition-all flex items-center gap-2 shadow-sm"
+                  className="h-10 px-5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-slate-950 font-bold text-xs sm:text-sm font-cairo transition-all flex items-center gap-2 shadow-sm cursor-pointer"
                 >
                   <MessageSquare className="w-4 h-4" />
                   <span>محادثة الطلب</span>
@@ -382,7 +519,7 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
                       setOrderToCancel(activeOrder);
                     }}
                     id="modal-cancel-order-btn"
-                    className="h-10 px-4 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-300 border border-red-500/20 text-xs font-semibold transition-colors flex items-center gap-1.5"
+                    className="h-10 px-4 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-300 border border-red-500/20 text-xs font-semibold transition-colors flex items-center gap-1.5 cursor-pointer"
                   >
                     <Ban className="w-3.5 h-3.5" />
                     <span>إلغاء الطلب</span>
@@ -392,11 +529,39 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
 
               <button
                 onClick={() => setActiveOrder(null)}
-                className="h-10 px-4 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+                className="h-10 px-4 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition-colors cursor-pointer"
               >
                 إغلاق
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox Modal for Receipt Image */}
+      {previewReceiptUrl && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setPreviewReceiptUrl(null)}
+        >
+          <div
+            className="relative max-w-3xl max-h-[85vh] overflow-hidden rounded-2xl border border-white/[0.1] bg-[#0c1018] p-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-3 py-2 border-b border-white/[0.08] mb-2 text-right">
+              <span className="text-xs font-bold text-slate-200 font-cairo">إيصال التحويل المرفق</span>
+              <button
+                onClick={() => setPreviewReceiptUrl(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.08] transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <img
+              src={previewReceiptUrl}
+              alt="معاينة كاملة لإيصال التحويل"
+              className="max-h-[75vh] w-auto mx-auto object-contain rounded-xl"
+            />
           </div>
         </div>
       )}

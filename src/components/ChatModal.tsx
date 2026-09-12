@@ -798,48 +798,54 @@ export const ChatModal: React.FC<ChatModalProps> = ({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      {/* Mobile: Full screen. Computer/Desktop: Left half of screen */}
+      {/* Mobile: Full screen. Computer/Desktop: Anchored drawer with responsive max-width */}
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className="relative w-full md:w-1/2 lg:w-1/2 h-full bg-[#0d121c] border-r border-white/[0.08] shadow-2xl flex flex-col overflow-hidden text-right"
+        className="relative w-full sm:max-w-lg md:max-w-xl lg:max-w-2xl h-full bg-[#090d16] border-l md:border-r-0 border-white/[0.08] shadow-2xl flex flex-col overflow-hidden text-right"
       >
         {/* Desktop Drag & Drop Visual Overlay */}
         {isDraggingFile && (
-          <div className="absolute inset-0 z-50 bg-[#0d121c]/92 border-2 border-dashed border-emerald-500 flex flex-col items-center justify-center gap-3 backdrop-blur-sm pointer-events-none animate-in fade-in">
-            <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+          <div className="absolute inset-0 z-50 bg-[#090d16]/95 border-2 border-dashed border-emerald-500 flex flex-col items-center justify-center gap-3 backdrop-blur-sm pointer-events-none animate-in fade-in">
+            <div className="w-16 h-16 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-lg shadow-emerald-500/10">
               <Upload className="w-8 h-8 animate-bounce" />
             </div>
             <p className="text-sm font-bold text-slate-100 font-cairo">أفلت الملف هنا للمعاينة قبل الإرسال</p>
             <p className="text-xs text-slate-400 font-cairo">يدعم الصور والمستندات بحد أقصى 15 ميجابايت</p>
           </div>
         )}
+
         {/* Header - Site logo & live presence indicator & close button */}
-        <div className="px-4 py-3 bg-[#121824] border-b border-white/[0.06] flex items-center justify-between shrink-0">
-          {/* Logo with Site Name */}
-          <div className="flex items-center gap-3">
+        <div className="px-4 py-3 bg-[#0d131f] border-b border-white/[0.07] flex items-center justify-between shrink-0 select-none">
+          {/* Logo with Presence */}
+          <div className="flex items-center gap-3 min-w-0">
             <Logo iconPosition="left" />
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900/80 border border-white/[0.07] text-[11px] text-slate-300">
+            <div className="h-4 w-px bg-white/[0.1] hidden sm:block shrink-0" />
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900/90 border border-white/[0.08] text-[11px] text-slate-300">
               <span
-                className={`w-2 h-2 rounded-full ${
-                  adminStatus.isOnline ? 'bg-emerald-400 animate-pulse shadow-sm shadow-emerald-400/50' : 'bg-slate-500'
+                className={`w-2 h-2 rounded-full shrink-0 ${
+                  adminStatus.isOnline
+                    ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)] animate-pulse'
+                    : 'bg-slate-500'
                 }`}
               />
-              <span className="font-cairo text-[11px] font-medium">{adminStatus.statusText}</span>
+              <span className="font-cairo text-[11px] font-medium truncate max-w-[120px] sm:max-w-none">
+                {adminStatus.statusText}
+              </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {/* Active order context badge in header */}
             {activeOrderContext.orderNumber && (
-              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono">
-                <Package className="w-3.5 h-3.5" />
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-xs font-mono">
+                <Package className="w-3.5 h-3.5 text-emerald-400" />
                 <span>طلب #{activeOrderContext.orderNumber}</span>
                 <button
                   type="button"
                   onClick={() => setActiveOrderContext({})}
-                  className="text-slate-400 hover:text-white mr-1"
+                  className="text-slate-400 hover:text-white mr-1 p-0.5 rounded hover:bg-white/[0.06] transition-colors cursor-pointer"
                   title="إلغاء تحديد الطلب والتحدث بشكل عام"
                 >
                   <X className="w-3 h-3" />
@@ -851,8 +857,9 @@ export const ChatModal: React.FC<ChatModalProps> = ({
             <button
               onClick={onClose}
               id="close-chat-modal-btn"
-              className="w-9 h-9 rounded-xl border border-white/[0.08] bg-slate-900/80 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors flex items-center justify-center cursor-pointer"
+              className="w-9 h-9 rounded-xl border border-white/[0.08] bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-white transition-all active:scale-95 flex items-center justify-center cursor-pointer shadow-sm"
               title="إغلاق المحادثة"
+              aria-label="إغلاق المحادثة"
             >
               <X className="w-4.5 h-4.5" />
             </button>
@@ -932,7 +939,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
               </p>
             </div>
           ) : (
-            messages.map((msg) => {
+            messages.map((msg, index) => {
               const isMine = msg.senderId === currentUser?.uid;
               const isAdminMsg = msg.senderRole === 'admin';
               const isDeleted = msg.isDeleted || msg.text === 'تم حذف هذه الرسالة';
@@ -942,28 +949,40 @@ export const ChatModal: React.FC<ChatModalProps> = ({
               const canCopy = !isDeleted && Boolean(msg.text);
               const canReply = !isDeleted;
 
+              // Message grouping check for visual elegance
+              const prevMsg = index > 0 ? messages[index - 1] : null;
+              const isSameSender = prevMsg && prevMsg.senderId === msg.senderId;
+              const isWithin2Mins =
+                prevMsg &&
+                Math.abs(new Date(msg.createdAt).getTime() - new Date(prevMsg.createdAt).getTime()) < 120000;
+              const showSenderHeader = !isSameSender || !isWithin2Mins;
+
               return (
                 <div
                   key={msg.id}
                   id={`chat-msg-${msg.id}`}
-                  className={`group flex flex-col ${isMine ? 'items-end' : 'items-start'}`}
+                  className={`group flex flex-col ${isMine ? 'items-end' : 'items-start'} ${
+                    showSenderHeader ? 'mt-3.5 first:mt-0' : 'mt-1'
+                  }`}
                 >
-                  <div className="flex items-center gap-2 mb-1 px-1 font-cairo">
-                    <span className="text-xs font-bold text-slate-300">
-                      {isMine ? 'أنت' : msg.senderName}
-                    </span>
-                    {isAdminMsg && !isMine && (
-                      <span className="text-[11px] px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 font-bold border border-emerald-500/30">
-                        الإدارة
+                  {showSenderHeader && (
+                    <div className="flex items-center gap-1.5 mb-1 px-1 font-cairo select-none">
+                      <span className="text-xs font-semibold text-slate-400">
+                        {isMine ? 'أنت' : msg.senderName}
                       </span>
-                    )}
-                  </div>
+                      {isAdminMsg && !isMine && (
+                        <span className="text-[10.5px] px-1.5 py-0.2 rounded-md bg-emerald-500/15 text-emerald-400 font-bold border border-emerald-500/25">
+                          الدعم الفني
+                        </span>
+                      )}
+                    </div>
+                  )}
 
-                  <div className="flex items-center gap-1.5 max-w-[90%]">
+                  <div className="flex items-center gap-1.5 max-w-[88%] sm:max-w-[82%]">
                     {/* Actions Toolbar: Reply, Copy, Edit, Delete */}
                     {!isDeleted && (
                       <div
-                        className={`opacity-60 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex items-center gap-1 shrink-0 ${
+                        className={`opacity-70 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 transition-all flex items-center gap-0.5 bg-[#0d121c]/90 backdrop-blur-md border border-white/[0.08] shadow-sm rounded-xl p-0.5 shrink-0 ${
                           isMine ? 'order-first' : 'order-last'
                         }`}
                       >
@@ -976,7 +995,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                               setEditingMessage(null);
                             }}
                             title="رد على الرسالة"
-                            className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-emerald-400 transition-colors"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-white/[0.06] transition-colors cursor-pointer"
                           >
                             <Reply className="w-3.5 h-3.5" />
                           </button>
@@ -988,7 +1007,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                             type="button"
                             onClick={() => handleCopyMessage(msg)}
                             title="نسخ نص الرسالة"
-                            className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-emerald-400 transition-colors relative"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-400 hover:bg-white/[0.06] transition-colors relative cursor-pointer"
                           >
                             {copiedMsgId === msg.id ? (
                               <Check className="w-3.5 h-3.5 text-emerald-400" />
@@ -1004,7 +1023,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                             type="button"
                             onClick={() => handleStartEdit(msg)}
                             title="تعديل الرسالة"
-                            className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-amber-400 transition-colors"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-amber-400 hover:bg-white/[0.06] transition-colors cursor-pointer"
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
@@ -1016,7 +1035,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                             type="button"
                             onClick={() => setMsgToDelete(msg.id)}
                             title="حذف الرسالة"
-                            className="p-1.5 rounded-lg hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-colors"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -1026,28 +1045,28 @@ export const ChatModal: React.FC<ChatModalProps> = ({
 
                     {/* Deleted Message Bubble */}
                     {isDeleted ? (
-                      <div className="flex items-center gap-2 py-2.5 px-4 rounded-2xl bg-slate-900/60 border border-white/[0.06] text-slate-400 italic text-xs sm:text-sm shadow-sm font-cairo">
-                        <Ban className="w-4 h-4 text-slate-500 shrink-0" />
+                      <div className="flex items-center gap-2 py-2 px-3.5 rounded-2xl bg-slate-900/50 border border-white/[0.06] text-slate-400 italic text-xs shadow-sm font-cairo">
+                        <Ban className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                         <span>تم حذف هذه الرسالة</span>
                       </div>
                     ) : (
                       <div
-                        className={`rounded-2xl p-3.5 text-sm sm:text-base leading-relaxed shadow-sm flex-1 font-cairo font-medium select-text break-words [overflow-wrap:anywhere] ${
+                        className={`rounded-2xl p-3 sm:p-3.5 text-sm sm:text-[14.5px] leading-relaxed shadow-sm flex-1 font-cairo select-text break-words [overflow-wrap:anywhere] transition-colors ${
                           isMine
-                            ? 'bg-emerald-500 text-slate-950 rounded-tl-sm'
-                            : 'bg-[#121824] text-slate-200 border border-white/[0.07] rounded-tr-sm'
+                            ? 'bg-gradient-to-br from-[#0e3025] to-[#0a2019] text-emerald-50 border border-emerald-500/35 rounded-tl-sm shadow-md shadow-emerald-950/20'
+                            : 'bg-[#111726] text-slate-100 border border-white/[0.08] rounded-tr-sm shadow-sm'
                         }`}
                       >
                         {/* Order Context Tag if message is related to an order */}
                         {msg.orderNumber && (
                           <div
-                            className={`inline-flex items-center gap-1 mb-2 px-2 py-0.5 rounded text-[10px] font-mono font-medium ${
+                            className={`inline-flex items-center gap-1.5 mb-2 px-2.5 py-0.5 rounded-md text-[10.5px] font-mono font-medium ${
                               isMine
-                                ? 'bg-slate-950/20 text-slate-900 border border-slate-950/15'
+                                ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/30'
                                 : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                             }`}
                           >
-                            <Package className="w-2.5 h-2.5 shrink-0" />
+                            <Package className="w-3 h-3 shrink-0" />
                             <span>طلب #{msg.orderNumber}</span>
                           </div>
                         )}
@@ -1057,16 +1076,17 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                           <div
                             className={`mb-2 p-2 rounded-lg border-r-2 text-xs font-cairo leading-relaxed ${
                               isMine
-                                ? 'bg-emerald-600/60 border-slate-950 text-slate-900'
-                                : 'bg-[#0a0e16] border-emerald-500 text-slate-300'
+                                ? 'bg-black/30 border-emerald-400 text-slate-200'
+                                : 'bg-black/40 border-emerald-500 text-slate-300'
                             }`}
                           >
-                            <div className="font-bold text-[11px] opacity-90 mb-0.5 flex items-center gap-1">
+                            <div className="font-bold text-[11px] text-emerald-300 mb-0.5 flex items-center gap-1">
                               <Reply className="w-3 h-3 shrink-0" />
                               <span>{msg.replyTo.senderName}</span>
                             </div>
-                            <div className="truncate text-[11px] opacity-80">
-                              {msg.replyTo.text === 'تم حذف هذه الرسالة' || messages.find((m) => m.id === msg.replyTo?.id)?.isDeleted ? (
+                            <div className="truncate text-[11px] text-slate-300">
+                              {msg.replyTo.text === 'تم حذف هذه الرسالة' ||
+                              messages.find((m) => m.id === msg.replyTo?.id)?.isDeleted ? (
                                 <span className="italic opacity-70">تم حذف هذه الرسالة</span>
                               ) : (
                                 msg.replyTo.text ||
@@ -1082,23 +1102,26 @@ export const ChatModal: React.FC<ChatModalProps> = ({
 
                         {/* Text message or caption */}
                         {msg.text && (
-                          <p className="whitespace-pre-wrap font-cairo font-medium text-sm sm:text-base leading-relaxed break-words [overflow-wrap:anywhere]" dir="auto">
+                          <p
+                            className="whitespace-pre-wrap font-cairo font-normal leading-[1.65] break-words [overflow-wrap:anywhere] [unicode-bidi:plaintext]"
+                            dir="auto"
+                          >
                             {msg.text}
                           </p>
                         )}
 
-                        {/* Image message with inline preview, lightbox trigger, and secure download */}
+                        {/* Image message */}
                         {(msg.type === 'image' || msg.isImage) && msg.fileUrl && (
                           <div className="space-y-2 min-w-[200px] max-w-sm mt-2">
                             <div
                               onClick={() => setViewingImage({ url: msg.fileUrl!, name: msg.fileName })}
-                              className="group relative rounded-xl overflow-hidden bg-black/40 border border-white/[0.1] max-h-64 flex items-center justify-center cursor-pointer"
+                              className="group relative rounded-xl overflow-hidden bg-black/50 border border-white/[0.08] max-h-64 sm:max-h-72 flex items-center justify-center cursor-pointer"
                               title="اضغط لعرض الصورة بالحجم الكامل"
                             >
                               <img
                                 src={msg.fileUrl}
                                 alt={msg.fileName || 'صورة'}
-                                className="w-full max-h-64 object-contain rounded-xl group-hover:scale-[1.02] transition-transform duration-200"
+                                className="w-full max-h-64 sm:max-h-72 object-contain rounded-xl group-hover:scale-[1.02] transition-transform duration-200"
                                 referrerPolicy="no-referrer"
                                 loading="lazy"
                               />
@@ -1109,12 +1132,12 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                             </div>
                             <div className="flex items-center justify-between gap-2 pt-1">
                               <div className="flex items-center gap-1.5 min-w-0">
-                                <ImageIcon className={`w-3.5 h-3.5 shrink-0 ${isMine ? 'text-slate-900' : 'text-emerald-400'}`} />
-                                <span className={`text-[11px] truncate ${isMine ? 'text-slate-950 font-bold' : 'text-slate-300'}`}>
+                                <ImageIcon className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+                                <span className="text-[11px] truncate text-slate-200 font-medium">
                                   {msg.fileName || 'صورة'}
                                 </span>
                                 {Boolean(msg.fileSize) && (
-                                  <span className={`text-[10px] ${isMine ? 'text-slate-800' : 'text-slate-500'}`}>
+                                  <span className="text-[10px] text-slate-400 font-payment-digits">
                                     ({formatFileSize(msg.fileSize)})
                                   </span>
                                 )}
@@ -1122,11 +1145,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                               <button
                                 type="button"
                                 onClick={() => downloadAttachment(msg.fileUrl!, msg.fileName || 'image.jpg')}
-                                className={`inline-flex items-center gap-1 py-1 px-2.5 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
-                                  isMine
-                                    ? 'bg-slate-950 text-emerald-400 hover:bg-slate-900'
-                                    : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400'
-                                }`}
+                                className="inline-flex items-center gap-1 py-1 px-2.5 rounded-lg text-[11px] font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-colors cursor-pointer shadow-sm"
                               >
                                 <Download className="w-3 h-3" />
                                 <span>تنزيل</span>
@@ -1135,15 +1154,11 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                           </div>
                         )}
 
-                        {/* Document / File with dynamic category icon and secure download */}
+                        {/* Document / File */}
                         {msg.type === 'file' && !msg.isImage && msg.fileUrl && (
-                          <div className="space-y-2 min-w-[200px] mt-2">
-                            <div className="flex items-center gap-2.5">
-                              <div
-                                className={`p-2.5 rounded-xl ${
-                                  isMine ? 'bg-emerald-600 text-slate-950' : 'bg-[#172030] text-emerald-400 border border-white/[0.06]'
-                                }`}
-                              >
+                          <div className="space-y-2 min-w-[210px] max-w-sm mt-2">
+                            <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-black/30 border border-white/[0.08]">
+                              <div className="p-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 shrink-0">
                                 {getFileCategory(msg.fileName) === 'sheet' ? (
                                   <FileSpreadsheet className="w-5 h-5" />
                                 ) : getFileCategory(msg.fileName) === 'archive' ? (
@@ -1152,12 +1167,12 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                                   <FileText className="w-5 h-5" />
                                 )}
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <p className={`font-bold truncate text-xs ${isMine ? 'text-slate-950' : 'text-slate-100'}`}>
+                              <div className="flex-1 min-w-0 text-right">
+                                <p className="font-bold truncate text-xs text-slate-100">
                                   {msg.fileName || 'ملف مرفق'}
                                 </p>
                                 {Boolean(msg.fileSize) && (
-                                  <p className={`text-[11px] ${isMine ? 'text-slate-800' : 'text-slate-400'}`}>
+                                  <p className="text-[10.5px] text-slate-400 font-payment-digits mt-0.5">
                                     الحجم: {formatFileSize(msg.fileSize)}
                                   </p>
                                 )}
@@ -1167,11 +1182,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                             <button
                               type="button"
                               onClick={() => downloadAttachment(msg.fileUrl!, msg.fileName || 'document')}
-                              className={`w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                                isMine
-                                  ? 'bg-slate-950 text-emerald-400 hover:bg-slate-900'
-                                  : 'bg-emerald-500 text-slate-950 hover:bg-emerald-400'
-                              }`}
+                              className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-colors cursor-pointer shadow-sm"
                             >
                               <Download className="w-3.5 h-3.5" />
                               <span>تحميل الملف</span>
@@ -1207,9 +1218,13 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                     {isMine && !isDeleted && (
                       <span
                         className={`inline-flex items-center text-xs font-bold transition-colors ${
-                          msg.readAt ? 'text-emerald-400' : 'text-slate-400'
+                          msg.readAt ? 'text-emerald-400' : 'text-slate-500'
                         }`}
-                        title={msg.readAt ? `تمت القراءة: ${new Date(msg.readAt).toLocaleTimeString('ar-EG')}` : 'تم الإرسال'}
+                        title={
+                          msg.readAt
+                            ? `تمت القراءة: ${new Date(msg.readAt).toLocaleTimeString('ar-EG')}`
+                            : 'تم الإرسال'
+                        }
                       >
                         {msg.readAt ? '✓✓' : '✓'}
                       </span>
@@ -1226,7 +1241,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '0ms' }} />
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '150ms' }} />
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '300ms' }} />
-              <span className="text-slate-400 text-[11px] mr-1">الدعم الفني يكتب الآن...</span>
+              <span className="text-slate-400 text-[11px] mr-1 font-medium">الدعم الفني يكتب الآن...</span>
             </div>
           )}
 
@@ -1235,15 +1250,15 @@ export const ChatModal: React.FC<ChatModalProps> = ({
 
         {/* Delete Confirmation Modal Overlay */}
         {msgToDelete && (
-          <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/80 p-4">
-            <div className="w-full max-w-sm bg-[#121824] border border-white/[0.1] rounded-2xl p-5 space-y-4 text-right shadow-2xl">
+          <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
+            <div className="w-full max-w-sm bg-[#111726] border border-white/[0.1] rounded-2xl p-5 space-y-4 text-right shadow-2xl">
               <div className="flex items-center gap-3 text-red-400">
                 <div className="w-10 h-10 rounded-xl bg-red-500/15 border border-red-500/30 flex items-center justify-center shrink-0">
                   <Trash2 className="w-5 h-5 text-red-400" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-slate-100">تأكيد حذف الرسالة</h4>
-                  <p className="text-xs text-slate-400 mt-0.5">هل أنت متأكد من رغبتك في حذف هذه الرسالة؟</p>
+                  <h4 className="text-sm font-bold text-slate-100 font-cairo">تأكيد حذف الرسالة</h4>
+                  <p className="text-xs text-slate-400 mt-0.5 font-cairo">هل أنت متأكد من رغبتك في حذف هذه الرسالة نهائياً؟</p>
                 </div>
               </div>
               <div className="flex items-center gap-2 pt-2">
@@ -1251,7 +1266,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                   type="button"
                   onClick={confirmDelete}
                   disabled={deletingMsg}
-                  className="flex-1 h-10 rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-bold transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                  className="flex-1 h-10 rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-bold transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer font-cairo shadow-md shadow-red-500/20"
                 >
                   {deletingMsg ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                   <span>نعم، حذف الرسالة</span>
@@ -1260,53 +1275,9 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                   type="button"
                   onClick={() => setMsgToDelete(null)}
                   disabled={deletingMsg}
-                  className="h-10 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors cursor-pointer"
+                  className="h-10 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors cursor-pointer font-cairo"
                 >
                   إلغاء
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Edit Message Modal Overlay */}
-        {editingMessage && (
-          <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/80 p-4">
-            <div className="w-full max-w-md bg-[#121824] border border-white/[0.1] rounded-2xl p-5 space-y-4 text-right shadow-2xl">
-              <div className="flex items-center justify-between">
-                <h4 className="text-sm font-bold text-slate-100 font-cairo">تعديل الرسالة</h4>
-                <button
-                  type="button"
-                  onClick={() => setEditingMessage(null)}
-                  className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-              <textarea
-                value={editText}
-                onChange={(e) => setEditText(e.target.value)}
-                rows={3}
-                className="w-full p-3 bg-[#080b11] border border-white/[0.1] focus:border-emerald-500/60 rounded-xl text-sm font-cairo text-slate-100 outline-none resize-none"
-                placeholder="اكتب التعديل..."
-              />
-              <div className="flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEditingMessage(null)}
-                  disabled={savingEdit}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
-                >
-                  إلغاء
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveEdit}
-                  disabled={savingEdit || !editText.trim()}
-                  className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-slate-950 text-xs font-bold flex items-center gap-1.5"
-                >
-                  {savingEdit ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
-                  <span>حفظ التعديل</span>
                 </button>
               </div>
             </div>
@@ -1315,7 +1286,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
 
         {/* Floating New Messages Indicator */}
         {hasNewMessagesBelow && (
-          <div className="relative flex justify-center w-full">
+          <div className="relative flex justify-center w-full select-none">
             <button
               type="button"
               onClick={() => {
@@ -1331,234 +1302,316 @@ export const ChatModal: React.FC<ChatModalProps> = ({
           </div>
         )}
 
-        {/* Input Bar */}
-        <div className="p-2.5 sm:p-3 bg-[#121824] border-t border-white/[0.06]">
-          {/* Quoted Reply Preview Banner */}
-          {replyingToMessage && (
-            <div className="mb-2 p-2 rounded-xl bg-[#090d16] border border-emerald-500/30 flex items-center justify-between gap-3 animate-in fade-in">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="w-1 h-8 rounded-full bg-emerald-400 shrink-0" />
-                <div className="min-w-0 text-right">
-                  <span className="text-[11px] font-bold text-emerald-400 block font-cairo">
-                    الرد على {replyingToMessage.senderName}
-                  </span>
-                  <span className="text-xs text-slate-300 truncate block font-cairo">
-                    {replyingToMessage.text ||
-                      (replyingToMessage.type === 'image'
-                        ? 'صورة'
-                        : replyingToMessage.type === 'audio'
-                        ? 'تسجيل صوتي'
-                        : 'ملف مرفق')}
-                  </span>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setReplyingToMessage(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white"
-                title="إلغاء الرد"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-
-          {/* Staged Attachment Preview Banner (Before Sending) */}
-          {stagedFile && (
-            <div className="mb-2.5 p-2.5 rounded-xl bg-[#090d16] border border-emerald-500/40 flex items-center justify-between gap-3 animate-in fade-in">
-              <div className="flex items-center gap-2.5 min-w-0">
-                {stagedFile.isImage && stagedFile.previewUrl ? (
-                  <div className="w-12 h-12 rounded-lg overflow-hidden border border-emerald-500/30 bg-black/40 shrink-0">
-                    <img
-                      src={stagedFile.previewUrl}
-                      alt={stagedFile.name}
-                      className="w-full h-full object-cover"
-                    />
+        {/* Composer / Input Area */}
+        <div className="p-3 bg-[#0d131f] border-t border-white/[0.07] shrink-0">
+          {/* Edit Mode Composer Banner (Inline experience) */}
+          {editingMessage ? (
+            <div className="space-y-2">
+              <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3 animate-in fade-in">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0">
+                    <Pencil className="w-3.5 h-3.5" />
                   </div>
-                ) : (
-                  <div className="w-10 h-10 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
-                    <FileText className="w-5 h-5" />
-                  </div>
-                )}
-                <div className="min-w-0 text-right">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-slate-200 truncate max-w-[180px] sm:max-w-xs font-cairo">
-                      {stagedFile.name}
+                  <div className="min-w-0 text-right">
+                    <span className="text-xs font-bold text-amber-300 font-cairo block">
+                      أنت تقوم الآن بتعديل رسالة سابقة
                     </span>
-                    <span className="text-[10px] text-emerald-400 font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 shrink-0 font-cairo">
-                      جاهز للإرسال
+                    <span className="text-[11px] text-slate-400 truncate block font-cairo mt-0.5 max-w-[220px] sm:max-w-md">
+                      {editingMessage.text}
                     </span>
                   </div>
-                  <p className="text-[10px] text-slate-400 font-payment-digits mt-0.5">
-                    الحجم: {formatFileSize(stagedFile.size)}
-                  </p>
                 </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleRemoveStagedFile}
-                disabled={sending}
-                title="إلغاء إرفاق الملف"
-                className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-
-          {/* Staged Audio Recording Preview Banner (After Recording, Before Sending) */}
-          {recordedAudioPreview && (
-            <div className="mb-2.5 p-2.5 rounded-xl bg-[#090d16] border border-emerald-500/40 flex items-center justify-between gap-3 animate-in fade-in">
-              <audio
-                ref={previewAudioRef}
-                src={recordedAudioPreview.url}
-                onEnded={() => setIsPreviewAudioPlaying(false)}
-              />
-              <div className="flex items-center gap-2.5 min-w-0">
                 <button
                   type="button"
                   onClick={() => {
-                    if (previewAudioRef.current) {
-                      if (isPreviewAudioPlaying) {
-                        previewAudioRef.current.pause();
-                        setIsPreviewAudioPlaying(false);
-                      } else {
-                        previewAudioRef.current.play();
-                        setIsPreviewAudioPlaying(true);
-                      }
+                    setEditingMessage(null);
+                    setEditText('');
+                  }}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-cairo text-slate-400 hover:text-white hover:bg-white/[0.06] transition-colors shrink-0 cursor-pointer"
+                  title="إلغاء التعديل"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>إلغاء</span>
+                </button>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSaveEdit();
+                }}
+                className="flex items-end gap-2 w-full min-w-0"
+              >
+                <textarea
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSaveEdit();
+                    } else if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setEditingMessage(null);
+                      setEditText('');
                     }
                   }}
-                  className="w-9 h-9 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center justify-center shrink-0"
-                >
-                  {isPreviewAudioPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
-                </button>
-                <div>
-                  <span className="text-xs font-bold text-slate-200 font-cairo block">
-                    تسجيل صوتي ({formatAudioDuration(recordedAudioPreview.duration)})
-                  </span>
-                  <span className="text-[10px] text-emerald-400 font-cairo">جاهز للإرسال، استمع أو اضغط إرسال</span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
+                  rows={1}
+                  placeholder="اكتب التعديل..."
+                  disabled={savingEdit}
+                  className="flex-1 min-w-0 min-h-[44px] max-h-32 py-2.5 px-3.5 bg-[#080b11] border border-amber-500/40 focus:border-amber-400 rounded-xl text-sm sm:text-[14.5px] font-cairo leading-relaxed text-slate-100 outline-none resize-none transition-colors"
+                  autoFocus
+                />
                 <button
-                  type="button"
-                  onClick={handleDiscardAudioPreview}
-                  disabled={sending}
-                  title="حذف التسجيل"
-                  className="p-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                  type="submit"
+                  disabled={!editText.trim() || savingEdit}
+                  className="h-11 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 disabled:opacity-40 text-slate-950 font-bold text-xs font-cairo transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer shadow-md shadow-amber-500/20"
+                  title="حفظ التعديل"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  {savingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  <span className="hidden sm:inline">حفظ</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={handleSendAudioPreview}
-                  disabled={sending}
-                  title="إرسال التسجيل"
-                  className="h-9 px-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-slate-950 font-bold text-xs flex items-center gap-1.5"
-                >
-                  {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5 -rotate-90" />}
-                  <span>إرسال</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Uploading Status Banner */}
-          {uploadStatusText && (
-            <div className="mb-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs flex items-center gap-2 font-cairo">
-              <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
-              <span className="font-semibold">{uploadStatusText}</span>
-            </div>
-          )}
-
-          {/* Recording active indicator */}
-          {isRecording ? (
-            <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-red-950/40 border border-red-500/40">
-              <div className="flex items-center gap-2 text-red-400 min-w-0">
-                <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping shrink-0"></span>
-                <span className="text-xs font-semibold truncate font-mono">
-                  جاري التسجيل ({formatAudioDuration(recordingSeconds)})...
-                </span>
-              </div>
-              <button
-                onClick={stopRecording}
-                id="stop-recording-btn"
-                className="flex items-center gap-1 h-9 px-3 rounded-lg bg-red-500 hover:bg-red-600 text-white font-semibold text-xs transition-colors shrink-0 cursor-pointer"
-              >
-                <Square className="w-3.5 h-3.5" />
-                <span>إيقاف ومعاينة</span>
-              </button>
+              </form>
             </div>
           ) : (
-            <form onSubmit={handleSendMessage} className="flex items-end gap-1.5 sm:gap-2 w-full min-w-0">
-              {/* File upload hidden input & button */}
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileSelect}
-                className="hidden"
-                id="chat-file-upload-input"
-              />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={sending}
-                id="attach-file-btn"
-                title="إرفاق صورة أو ملف"
-                className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl transition-colors border flex items-center justify-center shrink-0 cursor-pointer ${
-                  stagedFile
-                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                    : 'bg-[#172030] hover:bg-[#1f2b40] text-slate-300 hover:text-emerald-400 border-white/[0.08]'
-                }`}
-              >
-                <Paperclip className="w-5 h-5" />
-              </button>
+            <>
+              {/* Quoted Reply Preview Banner */}
+              {replyingToMessage && (
+                <div className="mb-2 p-2.5 rounded-xl bg-[#080c14] border border-emerald-500/30 flex items-center justify-between gap-3 animate-in fade-in">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-1 h-8 rounded-full bg-emerald-400 shrink-0" />
+                    <div className="min-w-0 text-right">
+                      <span className="text-[11px] font-bold text-emerald-400 block font-cairo">
+                        الرد على {replyingToMessage.senderName}
+                      </span>
+                      <span className="text-xs text-slate-300 truncate block font-cairo mt-0.5">
+                        {replyingToMessage.text ||
+                          (replyingToMessage.type === 'image'
+                            ? 'صورة'
+                            : replyingToMessage.type === 'audio'
+                            ? 'تسجيل صوتي'
+                            : 'ملف مرفق')}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setReplyingToMessage(null)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.06] transition-colors cursor-pointer"
+                    title="إلغاء الرد"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
 
-              {/* Voice Record button */}
-              <button
-                type="button"
-                onClick={startRecording}
-                disabled={sending || Boolean(recordedAudioPreview)}
-                id="voice-record-btn"
-                title="تسجيل رسالة صوتية"
-                className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-[#172030] hover:bg-[#1f2b40] text-slate-300 hover:text-emerald-400 transition-colors border border-white/[0.08] flex items-center justify-center shrink-0 cursor-pointer"
-              >
-                <Mic className="w-5 h-5" />
-              </button>
+              {/* Staged Attachment Preview Banner (Before Sending) */}
+              {stagedFile && (
+                <div className="mb-2.5 p-2.5 rounded-xl bg-[#080c14] border border-emerald-500/40 flex items-center justify-between gap-3 animate-in fade-in">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {stagedFile.isImage && stagedFile.previewUrl ? (
+                      <div className="w-12 h-12 rounded-lg overflow-hidden border border-emerald-500/30 bg-black/40 shrink-0">
+                        <img
+                          src={stagedFile.previewUrl}
+                          alt={stagedFile.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-10 h-10 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                        <FileText className="w-5 h-5" />
+                      </div>
+                    )}
+                    <div className="min-w-0 text-right">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-slate-200 truncate max-w-[180px] sm:max-w-xs font-cairo">
+                          {stagedFile.name}
+                        </span>
+                        <span className="text-[10px] text-emerald-400 font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 shrink-0 font-cairo">
+                          جاهز للإرسال
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 font-payment-digits mt-0.5">
+                        الحجم: {formatFileSize(stagedFile.size)}
+                      </p>
+                    </div>
+                  </div>
 
-              {/* Enhanced Textarea with comfortable Cairo font and line-height */}
-              <textarea
-                value={inputText}
-                onChange={handleInputChange}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendMessage();
-                  }
-                }}
-                rows={1}
-                placeholder={stagedFile ? 'اكتب تعليقًا على الملف المرفق...' : 'اكتب رسالتك هنا...'}
-                disabled={sending}
-                className="flex-1 min-w-0 min-h-[42px] max-h-28 py-2 px-3.5 bg-[#080b11] border border-white/[0.1] focus:border-emerald-500/60 rounded-xl text-sm sm:text-[15px] font-normal font-cairo leading-relaxed text-slate-100 placeholder:text-slate-500 outline-none resize-none transition-colors"
-              />
+                  <button
+                    type="button"
+                    onClick={handleRemoveStagedFile}
+                    disabled={sending}
+                    title="إلغاء إرفاق الملف"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0 cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
 
-              {/* Send Button */}
-              <button
-                type="submit"
-                disabled={(!inputText.trim() && !stagedFile) || sending}
-                id="send-chat-msg-btn"
-                className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:hover:bg-emerald-500 text-slate-950 font-bold transition-all flex items-center justify-center shrink-0 cursor-pointer"
-                title="إرسال"
-              >
-                {sending ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <Send className="w-5 h-5 -rotate-90" />
-                )}
-              </button>
-            </form>
+              {/* Staged Audio Recording Preview Banner (After Recording, Before Sending) */}
+              {recordedAudioPreview && (
+                <div className="mb-2.5 p-2.5 rounded-xl bg-[#080c14] border border-emerald-500/40 flex items-center justify-between gap-3 animate-in fade-in">
+                  <audio
+                    ref={previewAudioRef}
+                    src={recordedAudioPreview.url}
+                    onEnded={() => setIsPreviewAudioPlaying(false)}
+                  />
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (previewAudioRef.current) {
+                          if (isPreviewAudioPlaying) {
+                            previewAudioRef.current.pause();
+                            setIsPreviewAudioPlaying(false);
+                          } else {
+                            previewAudioRef.current.play();
+                            setIsPreviewAudioPlaying(true);
+                          }
+                        }
+                      }}
+                      className="w-9 h-9 rounded-full bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-slate-950 flex items-center justify-center shrink-0 cursor-pointer shadow-sm shadow-emerald-500/20"
+                    >
+                      {isPreviewAudioPlaying ? (
+                        <Pause className="w-4 h-4 fill-current" />
+                      ) : (
+                        <Play className="w-4 h-4 fill-current ml-0.5" />
+                      )}
+                    </button>
+                    <div>
+                      <span className="text-xs font-bold text-slate-200 font-cairo block">
+                        تسجيل صوتي ({formatAudioDuration(recordedAudioPreview.duration)})
+                      </span>
+                      <span className="text-[10.5px] text-emerald-400 font-cairo">
+                        جاهز للإرسال، استمع أو اضغط إرسال
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleDiscardAudioPreview}
+                      disabled={sending}
+                      title="حذف التسجيل"
+                      className="p-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSendAudioPreview}
+                      disabled={sending}
+                      title="إرسال التسجيل"
+                      className="h-9 px-3.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-95 disabled:opacity-40 text-slate-950 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-sm shadow-emerald-500/20"
+                    >
+                      {sending ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Send className="w-3.5 h-3.5 -rotate-90" />
+                      )}
+                      <span>إرسال</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Uploading Status Banner */}
+              {uploadStatusText && (
+                <div className="mb-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs flex items-center gap-2 font-cairo">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+                  <span className="font-semibold">{uploadStatusText}</span>
+                </div>
+              )}
+
+              {/* Recording active indicator */}
+              {isRecording ? (
+                <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-red-950/40 border border-red-500/40">
+                  <div className="flex items-center gap-2 text-red-400 min-w-0">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping shrink-0" />
+                    <span className="text-xs font-semibold truncate font-mono">
+                      جاري التسجيل ({formatAudioDuration(recordingSeconds)})...
+                    </span>
+                  </div>
+                  <button
+                    onClick={stopRecording}
+                    id="stop-recording-btn"
+                    className="flex items-center gap-1.5 h-9 px-3 rounded-lg bg-red-500 hover:bg-red-600 active:scale-95 text-white font-semibold text-xs transition-all shrink-0 cursor-pointer shadow-sm shadow-red-500/25 font-cairo"
+                  >
+                    <Square className="w-3.5 h-3.5 fill-current" />
+                    <span>إيقاف ومعاينة</span>
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleSendMessage} className="flex items-end gap-1.5 sm:gap-2 w-full min-w-0">
+                  {/* File upload hidden input & button */}
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    id="chat-file-upload-input"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={sending}
+                    id="attach-file-btn"
+                    title="إرفاق صورة أو ملف"
+                    className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl transition-all border flex items-center justify-center shrink-0 cursor-pointer active:scale-95 ${
+                      stagedFile
+                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-sm shadow-emerald-500/20'
+                        : 'bg-[#121824] hover:bg-[#192233] text-slate-300 hover:text-emerald-400 border-white/[0.08]'
+                    }`}
+                  >
+                    <Paperclip className="w-5 h-5" />
+                  </button>
+
+                  {/* Voice Record button */}
+                  <button
+                    type="button"
+                    onClick={startRecording}
+                    disabled={sending || Boolean(recordedAudioPreview)}
+                    id="voice-record-btn"
+                    title="تسجيل رسالة صوتية"
+                    className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-[#121824] hover:bg-[#192233] text-slate-300 hover:text-emerald-400 transition-all border border-white/[0.08] flex items-center justify-center shrink-0 cursor-pointer active:scale-95"
+                  >
+                    <Mic className="w-5 h-5" />
+                  </button>
+
+                  {/* Enhanced Textarea with Cairo font and comfortable line-height */}
+                  <textarea
+                    value={inputText}
+                    onChange={handleInputChange}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
+                    rows={1}
+                    placeholder={stagedFile ? 'اكتب تعليقًا على الملف المرفق...' : 'اكتب رسالتك هنا...'}
+                    disabled={sending}
+                    className="flex-1 min-w-0 min-h-[42px] max-h-28 py-2.5 px-3.5 bg-[#080b11] border border-white/[0.1] focus:border-emerald-500/60 focus:ring-1 focus:ring-emerald-500/20 rounded-xl text-sm sm:text-[14.5px] font-normal font-cairo leading-relaxed text-slate-100 placeholder:text-slate-500 outline-none resize-none transition-colors"
+                  />
+
+                  {/* Send Button */}
+                  <button
+                    type="submit"
+                    disabled={(!inputText.trim() && !stagedFile) || sending}
+                    id="send-chat-msg-btn"
+                    className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:scale-95 disabled:opacity-35 disabled:hover:bg-emerald-500 text-slate-950 font-bold transition-all flex items-center justify-center shrink-0 cursor-pointer shadow-sm shadow-emerald-500/20"
+                    title="إرسال"
+                  >
+                    {sending ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <Send className="w-5 h-5 -rotate-90" />
+                    )}
+                  </button>
+                </form>
+              )}
+            </>
           )}
         </div>
       </div>

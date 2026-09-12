@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Play, Pause, Volume2 } from 'lucide-react';
+import { Play, Pause, Volume2, AlertCircle } from 'lucide-react';
 
 interface AudioMessagePlayerProps {
   src: string;
@@ -15,6 +15,7 @@ export const AudioMessagePlayer: React.FC<AudioMessagePlayerProps> = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(initialDuration || 0);
+  const [playbackRate, setPlaybackRate] = useState<1 | 1.5 | 2>(1);
   const [hasError, setHasError] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -89,7 +90,7 @@ export const AudioMessagePlayer: React.FC<AudioMessagePlayerProps> = ({
     };
   }, [src, initialDuration]);
 
-  // Silky 60fps playback synchronization via requestAnimationFrame
+  // Silky playback synchronization via requestAnimationFrame
   useEffect(() => {
     let animId: number;
     if (isPlaying && audioRef.current) {
@@ -134,8 +135,17 @@ export const AudioMessagePlayer: React.FC<AudioMessagePlayerProps> = ({
         .catch((err) => {
           console.error('Audio play error:', err);
           setIsPlaying(false);
+          setHasError(true);
         });
     }
+  };
+
+  const cyclePlaybackRate = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const nextRate: 1 | 1.5 | 2 = playbackRate === 1 ? 1.5 : playbackRate === 1.5 ? 2 : 1;
+    audio.playbackRate = nextRate;
+    setPlaybackRate(nextRate);
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -149,13 +159,25 @@ export const AudioMessagePlayer: React.FC<AudioMessagePlayerProps> = ({
   const effectiveDuration = duration > 0 ? duration : (initialDuration || 1);
   const progressPercent = Math.min(100, Math.max(0, (currentTime / effectiveDuration) * 100));
 
+  if (hasError) {
+    return (
+      <div
+        dir="ltr"
+        className="flex items-center gap-2 p-2 sm:p-2.5 rounded-xl border border-red-500/30 bg-red-950/30 text-red-300 text-xs min-w-[210px]"
+      >
+        <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+        <span className="font-cairo">تعذر تشغيل الملف الصوتي</span>
+      </div>
+    );
+  }
+
   return (
     <div
       dir="ltr"
-      className={`flex items-center gap-3 p-2 sm:p-2.5 rounded-xl border min-w-[210px] sm:min-w-[240px] max-w-[280px] select-none transition-colors ${
+      className={`flex items-center gap-2.5 p-2 sm:p-2.5 rounded-xl border min-w-[210px] sm:min-w-[250px] max-w-[300px] select-none transition-all shadow-sm ${
         isMine
-          ? 'bg-emerald-950/70 border-emerald-500/30 text-emerald-100'
-          : 'bg-[#090d16] border-slate-800/90 text-slate-200'
+          ? 'bg-emerald-950/60 border-emerald-500/30 text-emerald-50'
+          : 'bg-[#090e18] border-white/[0.08] text-slate-200'
       }`}
     >
       <audio ref={audioRef} src={src} preload="metadata" />
@@ -164,12 +186,13 @@ export const AudioMessagePlayer: React.FC<AudioMessagePlayerProps> = ({
       <button
         type="button"
         onClick={togglePlay}
-        className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-transform active:scale-95 shadow-sm ${
+        className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-transform active:scale-95 shadow-sm cursor-pointer ${
           isMine
             ? 'bg-emerald-400 hover:bg-emerald-300 text-slate-950'
             : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
         }`}
         title={isPlaying ? 'إيقاف مؤقت' : 'تشغيل الرسالة الصوتية'}
+        aria-label={isPlaying ? 'إيقاف مؤقت' : 'تشغيل الرسالة الصوتية'}
       >
         {isPlaying ? (
           <Pause className="w-4 h-4 fill-current" />
@@ -188,21 +211,33 @@ export const AudioMessagePlayer: React.FC<AudioMessagePlayerProps> = ({
             step={0.02}
             value={currentTime}
             onChange={handleSeek}
-            className="w-full h-1.5 bg-slate-700/60 rounded-lg appearance-none cursor-pointer accent-emerald-400 transition-all"
+            aria-label="موضع الصوت"
+            className="w-full h-1.5 rounded-lg appearance-none cursor-pointer transition-all"
             style={{
-              background: `linear-gradient(to right, #10b981 ${progressPercent}%, #334155 ${progressPercent}%)`,
+              background: `linear-gradient(to right, #10b981 ${progressPercent}%, rgba(255, 255, 255, 0.12) ${progressPercent}%)`,
             }}
           />
         </div>
 
         <div className="flex items-center justify-between text-[10px] font-payment-digits text-slate-400 px-0.5">
-          <span>{formatTime(currentTime)}</span>
+          <span className="tabular-nums font-mono">{formatTime(currentTime)}</span>
           <div className="flex items-center gap-1">
             <Volume2 className="w-2.5 h-2.5 opacity-60" />
-            <span>{formatTime(effectiveDuration)}</span>
+            <span className="tabular-nums font-mono">{formatTime(effectiveDuration)}</span>
           </div>
         </div>
       </div>
+
+      {/* Playback Speed Pill */}
+      <button
+        type="button"
+        onClick={cyclePlaybackRate}
+        className="px-1.5 py-0.5 rounded text-[9.5px] font-mono font-bold tracking-tight bg-white/[0.06] hover:bg-white/[0.12] text-slate-300 hover:text-emerald-400 transition-colors shrink-0 cursor-pointer border border-white/[0.06]"
+        title="سرعة التشغيل"
+        aria-label={`سرعة التشغيل ${playbackRate}x`}
+      >
+        {playbackRate}x
+      </button>
     </div>
   );
 };

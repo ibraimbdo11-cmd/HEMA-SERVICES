@@ -49,29 +49,42 @@ export const AuthGatePage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setError(null);
     setSuccessMsg(null);
 
     try {
       setLoading(true);
       if (mode === 'register') {
+        if (!name.trim()) {
+          setError('يرجى كتابة الاسم بالكامل.');
+          setLoading(false);
+          return;
+        }
         if (password !== confirmPassword) {
           setError('كلمة المرور وتأكيد كلمة المرور غير متطابقين.');
+          setLoading(false);
           return;
         }
         if (password.length < 6) {
           setError('يجب أن تتكون كلمة المرور من 6 خانات على الأقل.');
+          setLoading(false);
           return;
         }
       }
 
       if (mode === 'login') {
-        await login(email, password);
+        await login(email.trim(), password);
       } else if (mode === 'register') {
-        await register(name, email, password);
+        await register(name.trim(), email.trim(), password);
       } else if (mode === 'forgot') {
-        await resetPassword(email);
-        setSuccessMsg('تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني بنجاح.');
+        if (!email.trim()) {
+          setError('يرجى إدخال البريد الإلكتروني.');
+          setLoading(false);
+          return;
+        }
+        await resetPassword(email.trim());
+        setSuccessMsg('تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني بنجاح. يرجى مراجعة صندوق الوارد والبريد غير الهام (Spam).');
       }
     } catch (err: any) {
       console.error(err);
@@ -93,7 +106,7 @@ export const AuthGatePage: React.FC = () => {
       } else if (code === 'auth/invalid-email' || message.includes('invalid-email')) {
         msg = 'صيغة البريد الإلكتروني غير صالحة.';
       } else if (code === 'auth/network-request-failed' || message.includes('network-request-failed')) {
-        msg = 'تعذر الاتصال بالشبكة، يرجى التأكد من اتصال الإنترنت.';
+        msg = 'تعذر الاتصال بالشبكة، يرجى التأكد من اتصال الإنترنت والمحاولة مجدداً.';
       } else if (code === 'auth/too-many-requests' || message.includes('too-many-requests')) {
         msg = 'تم إيقاف المحاولات مؤقتاً بسبب تكرار الطلب، يرجى الانتظار دقيقة والمحاولة مجدداً.';
       } else if (err.message && !err.message.includes('auth/')) {
@@ -106,6 +119,7 @@ export const AuthGatePage: React.FC = () => {
   };
 
   const handleGoogleAuth = async () => {
+    if (loading) return;
     setError(null);
     setSuccessMsg(null);
     try {
@@ -282,10 +296,11 @@ export const AuthGatePage: React.FC = () => {
                     <input
                       type="text"
                       required
+                      disabled={loading}
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       placeholder="أدخل اسمك الكامل"
-                      className="w-full h-12 bg-[#121824] border border-white/[0.08] focus:border-emerald-500/80 focus:ring-2 focus:ring-emerald-500/20 rounded-xl pr-10 pl-3.5 text-sm font-medium font-cairo text-slate-100 placeholder:text-slate-500 outline-none transition-all"
+                      className="w-full h-12 bg-[#121824] border border-white/[0.08] focus:border-emerald-500/80 focus:ring-2 focus:ring-emerald-500/20 rounded-xl pr-10 pl-3.5 text-sm font-medium font-cairo text-slate-100 placeholder:text-slate-500 outline-none transition-all disabled:opacity-60"
                     />
                     <User className="w-4 h-4 text-slate-500 absolute top-4 right-3.5" />
                   </div>
@@ -300,10 +315,11 @@ export const AuthGatePage: React.FC = () => {
                   <input
                     type="email"
                     required
+                    disabled={loading}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="name@example.com"
-                    className="w-full h-12 bg-[#121824] border border-white/[0.08] focus:border-emerald-500/80 focus:ring-2 focus:ring-emerald-500/20 rounded-xl pr-10 pl-3.5 text-sm font-medium font-cairo text-slate-100 placeholder:text-slate-500 outline-none transition-all"
+                    className="w-full h-12 bg-[#121824] border border-white/[0.08] focus:border-emerald-500/80 focus:ring-2 focus:ring-emerald-500/20 rounded-xl pr-10 pl-3.5 text-sm font-medium font-cairo text-slate-100 placeholder:text-slate-500 outline-none transition-all disabled:opacity-60"
                   />
                   <Mail className="w-4 h-4 text-slate-500 absolute top-4 right-3.5" />
                 </div>
@@ -318,12 +334,13 @@ export const AuthGatePage: React.FC = () => {
                     {mode === 'login' && (
                       <button
                         type="button"
+                        disabled={loading}
                         onClick={() => {
                           setError(null);
                           setSuccessMsg(null);
                           setMode('forgot');
                         }}
-                        className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors font-bold font-cairo cursor-pointer"
+                        className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors font-bold font-cairo cursor-pointer disabled:opacity-50"
                       >
                         نسيت كلمة المرور؟
                       </button>
@@ -333,16 +350,18 @@ export const AuthGatePage: React.FC = () => {
                     <input
                       type={showPassword ? 'text' : 'password'}
                       required
+                      disabled={loading}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full h-12 bg-[#121824] border border-white/[0.08] focus:border-emerald-500/80 focus:ring-2 focus:ring-emerald-500/20 rounded-xl pr-10 pl-10 text-sm font-medium font-cairo text-slate-100 placeholder:text-slate-500 outline-none transition-all"
+                      className="w-full h-12 bg-[#121824] border border-white/[0.08] focus:border-emerald-500/80 focus:ring-2 focus:ring-emerald-500/20 rounded-xl pr-10 pl-10 text-sm font-medium font-cairo text-slate-100 placeholder:text-slate-500 outline-none transition-all disabled:opacity-60"
                     />
                     <Lock className="w-4 h-4 text-slate-500 absolute top-4 right-3.5" />
                     <button
                       type="button"
+                      disabled={loading}
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute top-3.5 left-3 text-slate-400 hover:text-slate-200 transition-colors p-1 cursor-pointer"
+                      className="absolute top-3.5 left-3 text-slate-400 hover:text-slate-200 transition-colors p-1 cursor-pointer disabled:opacity-50"
                       title={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
                       aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
                     >
@@ -402,16 +421,18 @@ export const AuthGatePage: React.FC = () => {
                     <input
                       type={showConfirmPassword ? 'text' : 'password'}
                       required
+                      disabled={loading}
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full h-12 bg-[#121824] border border-white/[0.08] focus:border-emerald-500/80 focus:ring-2 focus:ring-emerald-500/20 rounded-xl pr-10 pl-10 text-sm font-medium font-cairo text-slate-100 placeholder:text-slate-500 outline-none transition-all"
+                      className="w-full h-12 bg-[#121824] border border-white/[0.08] focus:border-emerald-500/80 focus:ring-2 focus:ring-emerald-500/20 rounded-xl pr-10 pl-10 text-sm font-medium font-cairo text-slate-100 placeholder:text-slate-500 outline-none transition-all disabled:opacity-60"
                     />
                     <Lock className="w-4 h-4 text-slate-500 absolute top-4 right-3.5" />
                     <button
                       type="button"
+                      disabled={loading}
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute top-3.5 left-3 text-slate-400 hover:text-slate-200 transition-colors p-1 cursor-pointer"
+                      className="absolute top-3.5 left-3 text-slate-400 hover:text-slate-200 transition-colors p-1 cursor-pointer disabled:opacity-50"
                       title={showConfirmPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
                       aria-label={showConfirmPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
                     >
@@ -426,7 +447,7 @@ export const AuthGatePage: React.FC = () => {
                 type="submit"
                 disabled={loading}
                 id="auth-gate-submit-btn"
-                className="w-full h-12 flex items-center justify-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:translate-y-px text-slate-950 font-bold text-sm sm:text-base font-cairo transition-all shadow-md shadow-emerald-500/20 disabled:opacity-50 mt-4 cursor-pointer"
+                className="w-full h-12 flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-slate-950 font-extrabold text-sm sm:text-base font-cairo transition-all duration-200 shadow-md shadow-emerald-500/20 disabled:opacity-50 mt-4 cursor-pointer whitespace-nowrap"
               >
                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                 <span>
@@ -452,7 +473,7 @@ export const AuthGatePage: React.FC = () => {
                   onClick={handleGoogleAuth}
                   disabled={loading}
                   id="auth-gate-google-btn"
-                  className="w-full h-12 flex items-center justify-center gap-2.5 rounded-xl bg-[#121824] hover:bg-[#172030] border border-white/[0.08] hover:border-white/[0.16] text-slate-100 text-xs sm:text-sm font-bold font-cairo transition-all active:translate-y-px cursor-pointer"
+                  className="w-full h-12 flex items-center justify-center gap-2.5 rounded-2xl bg-[#121824] hover:bg-[#172030] border border-white/[0.08] hover:border-white/[0.16] text-slate-100 text-xs sm:text-sm font-bold font-cairo transition-all duration-200 active:scale-[0.98] cursor-pointer disabled:opacity-50 whitespace-nowrap"
                 >
                   <svg className="w-[18px] h-[18px] shrink-0" viewBox="0 0 24 24">
                     <path
@@ -484,12 +505,13 @@ export const AuthGatePage: React.FC = () => {
                   ليس لديك حساب؟{' '}
                   <button
                     type="button"
+                    disabled={loading}
                     onClick={() => {
                       setError(null);
                       setSuccessMsg(null);
                       setMode('register');
                     }}
-                    className="text-emerald-400 hover:text-emerald-300 font-bold underline underline-offset-4 mr-1 cursor-pointer"
+                    className="text-emerald-400 hover:text-emerald-300 font-bold underline underline-offset-4 mr-1 cursor-pointer disabled:opacity-50"
                   >
                     إنشاء حساب جديد
                   </button>
@@ -501,12 +523,13 @@ export const AuthGatePage: React.FC = () => {
                   لديك حساب بالفعل؟{' '}
                   <button
                     type="button"
+                    disabled={loading}
                     onClick={() => {
                       setError(null);
                       setSuccessMsg(null);
                       setMode('login');
                     }}
-                    className="text-emerald-400 hover:text-emerald-300 font-bold underline underline-offset-4 mr-1 cursor-pointer"
+                    className="text-emerald-400 hover:text-emerald-300 font-bold underline underline-offset-4 mr-1 cursor-pointer disabled:opacity-50"
                   >
                     تسجيل الدخول
                   </button>
@@ -516,12 +539,13 @@ export const AuthGatePage: React.FC = () => {
               {mode === 'forgot' && (
                 <button
                   type="button"
+                  disabled={loading}
                   onClick={() => {
                     setError(null);
                     setSuccessMsg(null);
                     setMode('login');
                   }}
-                  className="text-emerald-400 hover:text-emerald-300 font-bold underline underline-offset-4 cursor-pointer"
+                  className="text-emerald-400 hover:text-emerald-300 font-bold underline underline-offset-4 cursor-pointer disabled:opacity-50"
                 >
                   العودة لتسجيل الدخول
                 </button>

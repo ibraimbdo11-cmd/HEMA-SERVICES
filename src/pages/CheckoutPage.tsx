@@ -21,6 +21,7 @@ interface CheckoutPageProps {
   onBack: () => void;
   onViewOrders: () => void;
   onOpenAuth: () => void;
+  onOpenSupportForOrder?: (orderId: string, orderNumber: string) => void;
 }
 
 export const CheckoutPage: React.FC<CheckoutPageProps> = ({
@@ -28,6 +29,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
   onBack,
   onViewOrders,
   onOpenAuth,
+  onOpenSupportForOrder,
 }) => {
   const { currentUser, profile } = useAuth();
 
@@ -109,6 +111,8 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setValidationError(null);
+
+    if (submitting || uploading) return;
 
     if (!currentUser) {
       onOpenAuth();
@@ -198,14 +202,23 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
             <button
               onClick={onViewOrders}
               id="success-view-orders-btn"
-              className="w-full sm:w-auto h-11 px-6 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:translate-y-px text-slate-950 font-bold text-sm transition-all shadow-md shadow-emerald-500/20 cursor-pointer"
+              className="w-full sm:w-auto h-11 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-slate-950 font-extrabold text-sm font-cairo transition-all shadow-md shadow-emerald-500/20 cursor-pointer"
             >
               صفحة طلباتي
             </button>
+            {onOpenSupportForOrder && (
+              <button
+                onClick={() => onOpenSupportForOrder(createdOrder.id, createdOrder.orderNumber)}
+                id="success-open-support-btn"
+                className="w-full sm:w-auto h-11 px-5 rounded-2xl bg-[#121824] hover:bg-[#172030] border border-emerald-500/30 text-emerald-300 font-bold text-sm font-cairo transition-all cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <span>محادثة الدعم للطلب</span>
+              </button>
+            )}
             <button
               onClick={onBack}
               id="success-explore-more-btn"
-              className="w-full sm:w-auto h-11 px-6 rounded-xl bg-[#121824] hover:bg-[#172030] border border-white/[0.08] text-slate-200 font-semibold text-sm transition-all cursor-pointer"
+              className="w-full sm:w-auto h-11 px-6 rounded-2xl bg-[#121824] hover:bg-[#172030] border border-white/[0.08] text-slate-200 font-semibold text-sm font-cairo transition-all cursor-pointer"
             >
               استعراض خدمات أخرى
             </button>
@@ -382,11 +395,12 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                 id="checkout-page-sender-wallet"
                 type="tel"
                 required
+                disabled={submitting || uploading}
                 value={senderWallet}
                 onChange={(e) => setSenderWallet(e.target.value)}
                 placeholder="010xxxxxxxx أو رقم المحفظة المحول منها"
                 dir="ltr"
-                className="w-full h-12 bg-[#0a0e17] border border-white/[0.09] focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 rounded-xl px-4 text-sm font-mono text-slate-100 placeholder:text-slate-500 placeholder:font-sans transition-all outline-none text-left"
+                className="w-full h-12 bg-[#0a0e17] border border-white/[0.09] focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 rounded-xl px-4 text-sm font-mono text-slate-100 placeholder:text-slate-500 placeholder:font-sans transition-all outline-none text-left disabled:opacity-60"
               />
             </div>
 
@@ -495,10 +509,11 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
               <textarea
                 id="checkout-page-requirements"
                 rows={2}
+                disabled={submitting || uploading}
                 value={customerRequirements}
                 onChange={(e) => setCustomerRequirements(e.target.value)}
                 placeholder="اكتب أي مواصفات أو تفاصيل تريد إبلاغ فريق العمل بها بشأن طلبك..."
-                className="w-full bg-[#0a0e17] border border-white/[0.09] focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 rounded-xl p-3 text-sm text-slate-100 placeholder:text-slate-500 outline-none transition-all resize-none"
+                className="w-full bg-[#0a0e17] border border-white/[0.09] focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 rounded-xl p-3 text-sm text-slate-100 placeholder:text-slate-500 outline-none transition-all resize-none disabled:opacity-60"
               />
             </div>
           </div>

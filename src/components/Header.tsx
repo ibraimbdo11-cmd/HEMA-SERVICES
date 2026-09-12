@@ -28,9 +28,19 @@ export const Header: React.FC<HeaderProps> = ({
   const [isTopMenuOpen, setIsTopMenuOpen] = useState(false);
   const [isAccountOpen, setIsAccountOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
 
   const accountRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
+
+  // Track page scroll for subtle header border/shadow transition
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 15);
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Close menus on outside click
   useEffect(() => {
@@ -54,7 +64,11 @@ export const Header: React.FC<HeaderProps> = ({
     <>
       <header
         id="global-header"
-        className="sticky top-0 w-full bg-[#080b11]/95 backdrop-blur-md border-b border-slate-800/80 z-50"
+        className={`sticky top-0 w-full transition-all duration-200 z-50 ${
+          isScrolled
+            ? 'bg-[#080b11]/98 backdrop-blur-md border-b border-slate-800 shadow-lg shadow-black/40'
+            : 'bg-[#080b11]/92 backdrop-blur-md border-b border-slate-800/80'
+        }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between relative">
           {/* Right Side in RTL: Menu Button on the far right, followed by actions */}
@@ -208,8 +222,57 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           </div>
 
-          {/* Left Side in RTL: Logo & Name */}
-          <div className="flex items-center">
+          {/* Left Side in RTL: Desktop Navigation Links + Logo */}
+          <div className="flex items-center gap-4 sm:gap-6">
+            <nav className="hidden md:flex items-center gap-1.5" aria-label="التنقل الرئيسي">
+              <button
+                type="button"
+                onClick={() => {
+                  onNavigate('home');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold font-cairo transition-all cursor-pointer ${
+                  currentView === 'home'
+                    ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/25'
+                    : 'text-slate-300 hover:text-white hover:bg-white/[0.05] border border-transparent'
+                }`}
+              >
+                الرئيسية
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (currentView !== 'home') {
+                    onNavigate('home');
+                    setTimeout(() => {
+                      document.getElementById('services-section')?.scrollIntoView({ behavior: 'smooth' });
+                    }, 120);
+                  } else {
+                    document.getElementById('services-section')?.scrollIntoView({ behavior: 'smooth' });
+                  }
+                }}
+                className="px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold font-cairo text-slate-300 hover:text-white hover:bg-white/[0.05] border border-transparent transition-all cursor-pointer"
+              >
+                الخدمات
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  onNavigate('about');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold font-cairo transition-all cursor-pointer ${
+                  currentView === 'about'
+                    ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/25'
+                    : 'text-slate-300 hover:text-white hover:bg-white/[0.05] border border-transparent'
+                }`}
+              >
+                عن المنصة
+              </button>
+            </nav>
+
             <Logo iconPosition="left" onClick={() => onNavigate('home')} />
           </div>
         </div>

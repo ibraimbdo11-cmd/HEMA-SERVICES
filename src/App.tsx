@@ -287,6 +287,9 @@ function MainApp() {
                     onBack={() => setCurrentView('service-details')}
                     onViewOrders={() => setCurrentView('orders')}
                     onOpenAuth={() => handleOpenAuth('login')}
+                    onOpenSupportForOrder={(orderId, orderNumber) =>
+                      handleOpenSupport(undefined, orderId, orderNumber)
+                    }
                   />
                 </motion.div>
               )}

@@ -7,6 +7,7 @@ import {
   Package,
   Info,
   Shield,
+  Layers,
 } from 'lucide-react';
 
 interface TopMenuProps {
@@ -45,6 +46,18 @@ export const TopMenu: React.FC<TopMenuProps> = ({
   }, [isOpen, onClose]);
 
   const handleItemClick = (id: string) => {
+    if (id === 'services') {
+      if (currentView !== 'home') {
+        onNavigate('home');
+        setTimeout(() => {
+          document.getElementById('services-section')?.scrollIntoView({ behavior: 'smooth' });
+        }, 120);
+      } else {
+        document.getElementById('services-section')?.scrollIntoView({ behavior: 'smooth' });
+      }
+      onClose();
+      return;
+    }
     onNavigate(id);
     onClose();
   };
@@ -54,6 +67,11 @@ export const TopMenu: React.FC<TopMenuProps> = ({
       id: 'home',
       label: 'الرئيسية',
       icon: Home,
+    },
+    {
+      id: 'services',
+      label: 'الخدمات المتاحة',
+      icon: Layers,
     },
     {
       id: 'orders',
