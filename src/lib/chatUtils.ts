@@ -98,17 +98,18 @@ export function getFileExtension(filename?: string): string {
  * Allowed and dangerous extension definitions
  */
 export const ALLOWED_IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp']);
-export const ALLOWED_DOC_EXTS = new Set(['.pdf', '.doc', '.docx', '.txt', '.rtf', '.odt']);
+export const ALLOWED_DOC_EXTS = new Set(['.pdf', '.doc', '.docx', '.txt', '.rtf', '.odt', '.md']);
 export const ALLOWED_SHEET_EXTS = new Set(['.xls', '.xlsx', '.csv']);
 export const ALLOWED_PRESENTATION_EXTS = new Set(['.ppt', '.pptx']);
-export const ALLOWED_ARCHIVE_EXTS = new Set(['.zip', '.rar', '.7z', '.tar', '.gz']);
+export const ALLOWED_ARCHIVE_EXTS = new Set(['.zip', '.rar', '.7z', '.tar', '.gz', '.tgz', '.bz2', '.xz']);
+export const ALLOWED_CODE_DATA_EXTS = new Set(['.json', '.xml', '.sql', '.yaml', '.yml', '.env.example', '.ini', '.toml', '.log']);
 export const ALLOWED_AUDIO_EXTS = new Set(['.webm', '.ogg', '.mp3', '.m4a', '.wav', '.aac']);
 
 export const DANGEROUS_EXTS = new Set([
   '.exe', '.bat', '.cmd', '.sh', '.php', '.phtml', '.js', '.mjs', '.cjs',
   '.ts', '.py', '.rb', '.pl', '.cgi', '.jar', '.vbs', '.ps1', '.msi',
   '.apk', '.com', '.scr', '.pif', '.hta', '.html', '.htm', '.asp', '.aspx',
-  '.jsp', '.svg', '.xml',
+  '.jsp', '.svg',
 ]);
 
 /**
@@ -125,27 +126,28 @@ export function isImageFile(filename?: string, mimetype?: string): boolean {
 /**
  * Categorize a file for visual icon display
  */
-export function getFileCategory(filename?: string): 'image' | 'pdf' | 'doc' | 'sheet' | 'archive' | 'audio' | 'generic' {
+export function getFileCategory(filename?: string): 'image' | 'pdf' | 'doc' | 'sheet' | 'archive' | 'code' | 'audio' | 'generic' {
   const ext = getFileExtension(filename);
   if (ALLOWED_IMAGE_EXTS.has(ext)) return 'image';
   if (ext === '.pdf') return 'pdf';
   if (ALLOWED_DOC_EXTS.has(ext)) return 'doc';
   if (ALLOWED_SHEET_EXTS.has(ext)) return 'sheet';
   if (ALLOWED_ARCHIVE_EXTS.has(ext)) return 'archive';
+  if (ALLOWED_CODE_DATA_EXTS.has(ext)) return 'code';
   if (ALLOWED_AUDIO_EXTS.has(ext)) return 'audio';
   return 'generic';
 }
 
 /**
- * Client-side file validation (Size max 15MB, reject dangerous exts)
+ * Client-side file validation (Max size up to 200MB, reject dangerous exts)
  */
-export function validateAttachmentFile(file: File, maxSizeMB = 15): { valid: boolean; error?: string; isImage: boolean } {
+export function validateAttachmentFile(file: File, maxSizeMB = 200): { valid: boolean; error?: string; isImage: boolean } {
   const ext = getFileExtension(file.name);
 
   if (DANGEROUS_EXTS.has(ext)) {
     return {
       valid: false,
-      error: 'نوع الملف غير مسموح به لأسباب أمنية (الملفات التنفيذية والبرمجية محظورة)',
+      error: 'نوع الملف محظور أمنياً لحماية الخادم والأجهزة (الملفات التنفيذية والسكربتات المباشرة غير مسموح بها، يرجى ضغط المشروع في ملف ZIP)',
       isImage: false,
     };
   }
@@ -155,12 +157,13 @@ export function validateAttachmentFile(file: File, maxSizeMB = 15): { valid: boo
   const isSheet = ALLOWED_SHEET_EXTS.has(ext);
   const isPres = ALLOWED_PRESENTATION_EXTS.has(ext);
   const isArch = ALLOWED_ARCHIVE_EXTS.has(ext);
+  const isCodeData = ALLOWED_CODE_DATA_EXTS.has(ext);
   const isAudio = ALLOWED_AUDIO_EXTS.has(ext);
 
-  if (!isImg && !isDoc && !isSheet && !isPres && !isArch && !isAudio) {
+  if (!isImg && !isDoc && !isSheet && !isPres && !isArch && !isCodeData && !isAudio) {
     return {
       valid: false,
-      error: 'نوع الملف غير مدعوم. يرجى اختيار صورة، مستند (PDF/Word)، جدول بيانات، أرشيف أو ملف صوتي',
+      error: 'نوع الملف غير مدعوم. يرجى إرسال ملفات المشاريع بصيغة (ZIP, RAR, 7Z, TAR.GZ) أو المستندات وقواعد البيانات',
       isImage: false,
     };
   }

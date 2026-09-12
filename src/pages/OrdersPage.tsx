@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { OrderTimeline } from '../components/OrderTimeline';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { OrderItemSkeleton } from '../components/ui/Skeleton';
+import { ConfirmationModal } from '../components/ConfirmationModal';
 import {
   Package,
   Calendar,
@@ -350,56 +351,28 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
       )}
 
       {/* Confirmation Modal for Order Cancellation */}
-      {orderToCancel && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200 text-right">
-          <div className="w-full max-w-md bg-[#0d121c] border border-white/[0.08] rounded-2xl shadow-2xl p-6 space-y-5">
-            <div className="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 mx-auto">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
-
-            <div className="text-center space-y-2">
-              <h3 className="text-base font-semibold text-slate-100">
-                هل أنت متأكد من إلغاء هذا الطلب؟
-              </h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                طلبك رقم <span className="font-mono text-emerald-400 font-semibold">{orderToCancel.orderNumber}</span> ({orderToCancel.serviceNameSnapshot}) سيتم إلغاؤه وتتوقف متابعته.
-              </p>
-            </div>
-
-            {cancelError && (
-              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs">
-                {cancelError}
-              </div>
-            )}
-
-            {cancelSuccess && (
-              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs flex items-center gap-2 justify-center">
-                <CheckCircle className="w-4 h-4" />
-                <span>{cancelSuccess}</span>
-              </div>
-            )}
-
-            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-white/[0.06]">
-              <button
-                onClick={() => setOrderToCancel(null)}
-                disabled={cancelling}
-                className="h-10 px-4 rounded-xl bg-[#121824] hover:bg-[#172030] border border-white/[0.08] text-slate-300 text-xs font-semibold transition-colors"
-              >
-                تراجع
-              </button>
-              <button
-                onClick={handleConfirmCancel}
-                disabled={cancelling}
-                id="confirm-cancel-order-btn"
-                className="h-10 px-5 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-semibold text-xs transition-colors flex items-center gap-1.5"
-              >
-                {cancelling && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                <span>تأكيد الإلغاء</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmationModal
+        isOpen={Boolean(orderToCancel)}
+        onClose={() => {
+          if (!cancelling) {
+            setOrderToCancel(null);
+            setCancelError(null);
+            setCancelSuccess(null);
+          }
+        }}
+        onConfirm={handleConfirmCancel}
+        title="تأكيد إلغاء الطلب"
+        description={
+          orderToCancel
+            ? `طلبك رقم #${orderToCancel.orderNumber} (${orderToCancel.serviceNameSnapshot}) سيتم إلغاؤه وتتوقف متابعته.`
+            : ''
+        }
+        confirmLabel="نعم، تأكيد الإلغاء"
+        cancelLabel="تراجع"
+        isDestructive={true}
+        icon="alert"
+        isLoading={cancelling}
+      />
 
       {/* Order Details Modal */}
       {activeOrder && (

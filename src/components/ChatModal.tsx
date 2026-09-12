@@ -4,6 +4,7 @@ import { api } from '../lib/api';
 import { Conversation, MessageItem } from '../types';
 import { Logo } from './Logo';
 import { AudioMessagePlayer } from './ui/AudioMessagePlayer';
+import { ConfirmationModal } from './ConfirmationModal';
 import {
   X,
   Send,
@@ -1249,40 +1250,18 @@ export const ChatModal: React.FC<ChatModalProps> = ({
         </div>
 
         {/* Delete Confirmation Modal Overlay */}
-        {msgToDelete && (
-          <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
-            <div className="w-full max-w-sm bg-[#111726] border border-white/[0.1] rounded-2xl p-5 space-y-4 text-right shadow-2xl">
-              <div className="flex items-center gap-3 text-red-400">
-                <div className="w-10 h-10 rounded-xl bg-red-500/15 border border-red-500/30 flex items-center justify-center shrink-0">
-                  <Trash2 className="w-5 h-5 text-red-400" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-slate-100 font-cairo">تأكيد حذف الرسالة</h4>
-                  <p className="text-xs text-slate-400 mt-0.5 font-cairo">هل أنت متأكد من رغبتك في حذف هذه الرسالة نهائياً؟</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={confirmDelete}
-                  disabled={deletingMsg}
-                  className="flex-1 h-10 rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-bold transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer font-cairo shadow-md shadow-red-500/20"
-                >
-                  {deletingMsg ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                  <span>نعم، حذف الرسالة</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMsgToDelete(null)}
-                  disabled={deletingMsg}
-                  className="h-10 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors cursor-pointer font-cairo"
-                >
-                  إلغاء
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <ConfirmationModal
+          isOpen={Boolean(msgToDelete)}
+          onClose={() => setMsgToDelete(null)}
+          onConfirm={confirmDelete}
+          title="تأكيد حذف الرسالة"
+          description="هل أنت متأكد من رغبتك في حذف هذه الرسالة نهائياً من المحادثة؟"
+          confirmLabel="نعم، حذف الرسالة"
+          cancelLabel="إلغاء"
+          isDestructive={true}
+          icon="trash"
+          isLoading={deletingMsg}
+        />
 
         {/* Floating New Messages Indicator */}
         {hasNewMessagesBelow && (

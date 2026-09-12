@@ -38,10 +38,17 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 
 // Multer Storage Configuration
 const ALLOWED_UPLOAD_EXTS = new Set([
+  // Images
   '.jpg', '.jpeg', '.png', '.gif', '.webp',
-  '.pdf', '.doc', '.docx', '.txt', '.rtf', '.odt',
+  // Documents
+  '.pdf', '.doc', '.docx', '.txt', '.rtf', '.odt', '.md',
+  // Spreadsheets & Presentations
   '.xls', '.xlsx', '.csv', '.ppt', '.pptx',
-  '.zip', '.rar', '.7z', '.tar', '.gz',
+  // Archives & Compressed Projects
+  '.zip', '.rar', '.7z', '.tar', '.gz', '.tgz', '.bz2', '.xz',
+  // Data, Configs & Project Schemas
+  '.json', '.xml', '.sql', '.yaml', '.yml', '.env.example', '.ini', '.toml', '.log',
+  // Audio recordings
   '.webm', '.ogg', '.mp3', '.m4a', '.wav', '.aac',
 ]);
 
@@ -49,7 +56,7 @@ const DANGEROUS_UPLOAD_EXTS = new Set([
   '.exe', '.bat', '.cmd', '.sh', '.php', '.phtml', '.php3', '.php4', '.php5', '.phps',
   '.js', '.mjs', '.cjs', '.ts', '.py', '.rb', '.pl', '.cgi', '.jar', '.vbs', '.ps1',
   '.msi', '.apk', '.com', '.scr', '.pif', '.hta', '.html', '.htm', '.asp', '.aspx',
-  '.jsp', '.svg', '.xml', '.xhtml',
+  '.jsp', '.svg', '.xhtml',
 ]);
 
 const storage = multer.diskStorage({
@@ -66,7 +73,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 15 * 1024 * 1024 }, // 15MB limit
+  limits: { fileSize: 200 * 1024 * 1024 }, // 200MB limit for software projects and archives
   fileFilter: (_req, file, cb) => {
     const rawExt = path.extname(file.originalname).toLowerCase();
     if (DANGEROUS_UPLOAD_EXTS.has(rawExt)) {
@@ -736,7 +743,7 @@ app.post('/api/upload', requireAuth, (req, res) => {
   upload.single('file')(req as any, res as any, (err: any) => {
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ error: 'حجم الملف يتجاوز الحد الأقصى المسموح به (15 ميجابايت)' });
+        return res.status(400).json({ error: 'حجم الملف يتجاوز الحد الأقصى المسموح به (200 ميجابايت)' });
       }
       if (err.message === 'INVALID_FILE_DANGEROUS') {
         return res.status(400).json({ error: 'نوع الملف غير مسموح به لأسباب أمنية (الملفات التنفيذية والبرمجية محظورة)' });
@@ -853,6 +860,8 @@ app.get('/uploads/:filename', async (req, res) => {
   }
 
   res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox;");
+  res.setHeader('X-Frame-Options', 'DENY');
 
   const db = readDB();
   const isDownload = req.query.download === '1' || req.query.dl === '1';
@@ -1186,6 +1195,17 @@ app.post('/api/orders', requireAuth, (req, res) => {
 
   if (!serviceId || !paymentProof) {
     return res.status(400).json({ error: 'يرجى استكمال جميع بيانات الطلب وإرفاق إثبات التحويل' });
+  }
+
+  // Validate payment proof file existence and ownership
+  const proofBasename = path.basename(paymentProof);
+  const proofPath = path.join(UPLOADS_DIR, proofBasename);
+  if (!fs.existsSync(proofPath)) {
+    return res.status(400).json({ error: 'ملف إثبات التحويل غير موجود على الخادم، يرجى إعادة رفعه' });
+  }
+  const proofUploadRec = (db.uploads || []).find((u) => u.filename === proofBasename);
+  if (proofUploadRec && proofUploadRec.uploaderId !== req.user!.uid && req.user!.role !== 'admin') {
+    return res.status(403).json({ error: 'غير مصرح باستخدام هذا الإيصال' });
   }
 
   // Identity is derived 100% server-side from verified req.user
@@ -1852,6 +1872,32 @@ app.post('/api/conversations/:id/messages', requireAuth, (req, res) => {
   const senderName = req.user!.role === 'admin' ? 'إدارة HEMA SERVICES' : (req.user!.name || 'العميل');
 
   const determinedType = type === 'image' || isImage ? 'image' : (type as 'text' | 'file' | 'audio' | 'image' || 'text');
+
+  // Verify attachment file ownership and existence
+  if (fileUrl) {
+    const fBasename = path.basename(fileUrl);
+    const fPath = path.join(UPLOADS_DIR, fBasename);
+    if (!fs.existsSync(fPath)) {
+      return res.status(400).json({ error: 'الملف المرفق غير موجود على الخادم أو تم حذفه' });
+    }
+    const upRec = (db.uploads || []).find((u) => u.filename === fBasename);
+    if (upRec && upRec.uploaderId !== req.user!.uid && req.user!.role !== 'admin') {
+      return res.status(403).json({ error: 'غير مصرح باستخدام هذا الملف المرفق' });
+    }
+  }
+
+  // Verify audio recording file ownership and existence
+  if (audioUrl) {
+    const aBasename = path.basename(audioUrl);
+    const aPath = path.join(UPLOADS_DIR, aBasename);
+    if (!fs.existsSync(aPath)) {
+      return res.status(400).json({ error: 'التسجيل الصوتي غير موجود على الخادم أو تم حذفه' });
+    }
+    const upRec = (db.uploads || []).find((u) => u.filename === aBasename);
+    if (upRec && upRec.uploaderId !== req.user!.uid && req.user!.role !== 'admin') {
+      return res.status(403).json({ error: 'غير مصرح باستخدام هذا التسجيل الصوتي' });
+    }
+  }
 
   const newMsg = {
     id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,

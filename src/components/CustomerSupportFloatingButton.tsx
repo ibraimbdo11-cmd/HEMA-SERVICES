@@ -11,15 +11,16 @@ export const CustomerSupportFloatingButton: React.FC<CustomerSupportFloatingButt
   unreadCount = 0,
 }) => {
   return (
-    <div className="fixed bottom-6 left-6 z-40">
+    <div className="fixed bottom-5 left-5 sm:bottom-6 sm:left-6 z-40 select-none">
       <button
         onClick={onClick}
         id="floating-customer-support-btn"
-        className="relative group w-12 h-12 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold shadow-lg shadow-emerald-500/10 transition-all duration-200 active:scale-95 flex items-center justify-center border border-emerald-400/40"
-        aria-label="خدمة العملاء"
+        type="button"
+        className="relative group w-12 h-12 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold shadow-lg shadow-emerald-500/25 transition-all duration-200 active:scale-95 flex items-center justify-center border border-emerald-400/40 cursor-pointer"
+        aria-label="خدمة العملاء والدعم الفني"
         title="خدمة العملاء والدعم الفني"
       >
-        <Headset className="w-5 h-5" />
+        <Headset className="w-5 h-5 text-slate-950 group-hover:scale-105 transition-transform" />
 
         {unreadCount > 0 && (
           <span
@@ -41,9 +42,9 @@ export const CustomerSupportFloatingButton: React.FC<CustomerSupportFloatingButt
           </span>
         )}
 
-        {/* Tooltip on hover */}
-        <span className="hidden md:group-hover:inline-block absolute left-full ml-3 px-3 py-1.5 rounded-lg bg-[#0d121c] text-slate-200 text-xs font-medium whitespace-nowrap border border-white/[0.08] shadow-lg pointer-events-none">
-          خدمة العملاء
+        {/* Tooltip towards inside of screen */}
+        <span className="hidden md:group-hover:inline-block absolute left-full ml-3 px-3 py-1.5 rounded-xl bg-[#0d121c] text-slate-200 text-xs font-semibold font-cairo whitespace-nowrap border border-white/[0.08] shadow-xl pointer-events-none transition-opacity">
+          خدمة العملاء والدعم
         </span>
       </button>
     </div>

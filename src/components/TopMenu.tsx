@@ -116,14 +116,12 @@ export const TopMenu: React.FC<TopMenuProps> = ({
             role="dialog"
             aria-modal="true"
             aria-label="القائمة الجانبية"
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
+            initial={{ x: '100%', opacity: 0.95 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: '100%', opacity: 0.95 }}
             transition={{
-              type: 'spring',
-              damping: 32,
-              stiffness: 350,
-              mass: 0.7,
+              duration: 0.2,
+              ease: [0.16, 1, 0.3, 1],
             }}
             className="fixed top-16 right-0 bottom-0 z-40 h-[calc(100dvh-4rem)] w-72 sm:w-80 max-w-[85vw] bg-[#080b11] border-l border-white/[0.08] shadow-2xl flex flex-col overflow-hidden text-right select-none pointer-events-auto"
           >
