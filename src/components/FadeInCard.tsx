@@ -7,58 +7,47 @@ interface FadeInCardProps {
 }
 
 /**
- * FadeInCard implements a strict, smooth, one-time OPACITY-ONLY fade in
- * when an element enters the viewport.
+ * FadeInCard implements a strict, smooth, recurring OPACITY-ONLY fade in
+ * whenever the element enters the viewport.
  *
  * Rules:
  * - Strictly NO translateY, scale, rotate, bounce, zoom, or parallax.
- * - Triggers ONCE: scrolling away and back does NOT replay the animation.
- * - Respects prefers-reduced-motion: displays immediately if reduced motion is preferred.
+ * - Re-triggers every time the card enters the viewport.
+ * - Resets when exiting viewport, so scrolling back into view replays the fade.
+ * - Uses calibrated threshold & rootMargin to eliminate intersection observer jitter.
+ * - Respects prefers-reduced-motion: displays immediately with no transition if reduced motion is preferred.
  */
 export const FadeInCard: React.FC<FadeInCardProps> = ({
   children,
   id,
   className = '',
 }) => {
-  const [isVisible, setIsVisible] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return (
-        window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
-        !('IntersectionObserver' in window)
-      );
-    }
-    return false;
-  });
-
+  const [isVisible, setIsVisible] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(false);
   const domRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (isVisible) return;
-    if (typeof window === 'undefined' || !('IntersectionObserver' in window)) {
-      setIsVisible(true);
-      return;
-    }
+    if (typeof window === 'undefined') return;
 
-    // Check prefers-reduced-motion dynamically
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setReducedMotion(mediaQuery.matches);
+    const motionHandler = (e: MediaQueryListEvent) => setReducedMotion(e.matches);
+    mediaQuery.addEventListener('change', motionHandler);
+
+    if (mediaQuery.matches || !('IntersectionObserver' in window)) {
       setIsVisible(true);
-      return;
+      return () => mediaQuery.removeEventListener('change', motionHandler);
     }
 
     const observer = new IntersectionObserver(
       (entries) => {
         const [entry] = entries;
-        if (entry.isIntersecting) {
-          setIsVisible(true);
-          if (domRef.current) {
-            observer.unobserve(domRef.current);
-          }
-          observer.disconnect();
-        }
+        // Re-triggers every time card enters / exits viewport
+        setIsVisible(entry.isIntersecting);
       },
       {
-        threshold: 0.08,
-        rootMargin: '0px 0px -20px 0px',
+        threshold: 0.1,
+        rootMargin: '0px 0px -30px 0px',
       }
     );
 
@@ -68,12 +57,13 @@ export const FadeInCard: React.FC<FadeInCardProps> = ({
     }
 
     return () => {
+      mediaQuery.removeEventListener('change', motionHandler);
       if (currentEl) {
         observer.unobserve(currentEl);
       }
       observer.disconnect();
     };
-  }, [isVisible]);
+  }, []);
 
   return (
     <div
@@ -81,9 +71,13 @@ export const FadeInCard: React.FC<FadeInCardProps> = ({
       id={id}
       className={`h-full ${className}`}
       style={{
-        opacity: isVisible ? 1 : 0,
-        transition: isVisible ? 'opacity 0.5s ease-out' : 'none',
-        willChange: isVisible ? 'auto' : 'opacity',
+        opacity: reducedMotion || isVisible ? 1 : 0.05,
+        transition: reducedMotion
+          ? 'none'
+          : isVisible
+          ? 'opacity 380ms cubic-bezier(0.16, 1, 0.3, 1)'
+          : 'opacity 220ms ease-out',
+        willChange: reducedMotion ? 'auto' : 'opacity',
       }}
     >
       {children}

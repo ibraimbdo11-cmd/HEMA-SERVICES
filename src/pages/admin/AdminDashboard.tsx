@@ -1160,11 +1160,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
         isOpen={Boolean(deleteConfirmService)}
         onClose={() => setDeleteConfirmService(null)}
         onConfirm={handleDeleteService}
-        title="تأكيد حذف الخدمة"
-        description={`سيتم إزالة خدمة "${deleteConfirmService?.title || ''}" نهائياً من قائمة الخدمات المتاحة للعملاء.`}
-        confirmLabel="نعم، حذف الخدمة"
+        title="حذف الخدمة"
+        description="هل أنت متأكد من حذف هذه الخدمة؟ لا يمكن التراجع عن هذا الإجراء."
+        confirmLabel="حذف"
         cancelLabel="إلغاء"
-        isDestructive={true}
+        destructive={true}
         icon="trash"
       />
 
@@ -1173,13 +1173,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
         isOpen={Boolean(adminMsgToDelete)}
         onClose={() => setAdminMsgToDelete(null)}
         onConfirm={handleConfirmDeleteAdminMessage}
-        title="تأكيد حذف الرسالة"
-        description="هل أنت متأكد من رغبتك في حذف هذه الرسالة نهائياً من محادثة خدمة العملاء؟"
-        confirmLabel="نعم، حذف الرسالة"
+        title="حذف الرسالة"
+        description="هل أنت متأكد من حذف هذه الرسالة؟ لا يمكن التراجع عن هذا الإجراء."
+        confirmLabel="حذف"
         cancelLabel="إلغاء"
-        isDestructive={true}
+        destructive={true}
         icon="trash"
-        isLoading={adminDeletingMsg}
+        loading={adminDeletingMsg}
       />
 
       {/* 5. Edit Message Modal */}

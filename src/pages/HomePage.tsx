@@ -4,6 +4,7 @@ import { ServiceItem } from '../types';
 import { ServiceCard } from '../components/ServiceCard';
 import { ServiceCardSkeleton } from '../components/ui/Skeleton';
 import { FadeInCard } from '../components/FadeInCard';
+import { HeroCodeNetwork } from '../components/HeroCodeNetwork';
 import { Search, X, ArrowLeft, ChevronDown, Layers, ShieldCheck, Zap } from 'lucide-react';
 
 interface HomePageProps {
@@ -47,7 +48,16 @@ export const HomePage: React.FC<HomePageProps> = ({
   const scrollToServices = () => {
     const el = document.getElementById('services-section');
     if (el) {
-      el.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth' });
+      const header = document.getElementById('global-header');
+      const headerHeight = header ? header.offsetHeight : 64;
+      const targetOffset = 20;
+      const elementPosition = el.getBoundingClientRect().top + window.scrollY;
+      const offsetPosition = elementPosition - headerHeight - targetOffset;
+
+      window.scrollTo({
+        top: Math.max(0, offsetPosition),
+        behavior: prefersReducedMotion ? 'auto' : 'smooth',
+      });
     }
   };
 
@@ -58,67 +68,8 @@ export const HomePage: React.FC<HomePageProps> = ({
         id="hero-section"
         className="relative min-h-[calc(100vh-4rem)] min-h-[calc(100dvh-4rem)] flex flex-col justify-between items-center overflow-hidden border-b border-white/[0.08] bg-[#07090e]"
       >
-        {/* Background Network Layer Container */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden select-none z-0">
-          {/* Ambient Emerald Radial Glow */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] sm:w-[900px] h-[350px] sm:h-[500px] bg-emerald-500/[0.12] blur-[140px] rounded-full" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_90%_70%_at_50%_25%,rgba(16,185,129,0.15),transparent_75%)]" />
-
-          {/* SVG Vector Grid with Luminous Intersections & Faded Edges */}
-          <svg
-            className="absolute inset-0 w-full h-full text-emerald-500/[0.16]"
-            xmlns="http://www.w3.org/2000/svg"
-            width="100%"
-            height="100%"
-          >
-            <defs>
-              <pattern
-                id="hero-grid-pattern"
-                width="48"
-                height="48"
-                patternUnits="userSpaceOnUse"
-              >
-                <path
-                  d="M 48 0 L 0 0 0 48"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1"
-                />
-                <circle cx="48" cy="0" r="1.5" fill="#34d399" opacity="0.8" />
-                <circle cx="0" cy="48" r="1.5" fill="#34d399" opacity="0.8" />
-              </pattern>
-
-              <radialGradient id="hero-grid-radial" cx="50%" cy="35%" r="65%">
-                <stop offset="0%" stopColor="#ffffff" stopOpacity="0.85" />
-                <stop offset="40%" stopColor="#ffffff" stopOpacity="0.55" />
-                <stop offset="70%" stopColor="#ffffff" stopOpacity="0.2" />
-                <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
-              </radialGradient>
-
-              <linearGradient id="hero-grid-bottom-fade" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
-                <stop offset="75%" stopColor="#ffffff" stopOpacity="0.8" />
-                <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
-              </linearGradient>
-
-              <mask id="hero-grid-mask">
-                <rect width="100%" height="100%" fill="url(#hero-grid-radial)" />
-                <rect width="100%" height="100%" fill="url(#hero-grid-bottom-fade)" />
-              </mask>
-            </defs>
-
-            <rect
-              width="100%"
-              height="100%"
-              fill="url(#hero-grid-pattern)"
-              mask="url(#hero-grid-mask)"
-            />
-          </svg>
-
-          {/* Gentle ambient gradient fades around outer edges */}
-          <div className="absolute inset-0 bg-gradient-to-b from-[#07090e]/50 via-transparent to-[#07090e] pointer-events-none" />
-          <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-[#07090e] via-[#07090e]/80 to-transparent pointer-events-none" />
-        </div>
+        {/* Animated Code Network Background Layer */}
+        <HeroCodeNetwork />
 
         {/* Top spacer to balance layout vertically */}
         <div className="w-full h-4 sm:h-8 shrink-0" aria-hidden="true" />
@@ -203,7 +154,7 @@ export const HomePage: React.FC<HomePageProps> = ({
       {/* Services Section with integrated search and clear hierarchy */}
       <section
         id="services-section"
-        className="pt-12 sm:pt-16 pb-20 sm:pb-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"
+        className="scroll-mt-24 pt-6 sm:pt-8 pb-20 sm:pb-24 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"
       >
         {/* Section Header */}
         <div className="mb-6 sm:mb-8 text-center sm:text-right space-y-2">

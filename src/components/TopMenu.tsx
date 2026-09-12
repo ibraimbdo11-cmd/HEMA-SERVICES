@@ -45,15 +45,28 @@ export const TopMenu: React.FC<TopMenuProps> = ({
     };
   }, [isOpen, onClose]);
 
+  const scrollToServicesSection = () => {
+    const el = document.getElementById('services-section');
+    if (el) {
+      const header = document.getElementById('global-header');
+      const headerHeight = header ? header.offsetHeight : 64;
+      const targetOffset = 20;
+      const elementPosition = el.getBoundingClientRect().top + window.scrollY;
+      const offsetPosition = elementPosition - headerHeight - targetOffset;
+      window.scrollTo({
+        top: Math.max(0, offsetPosition),
+        behavior: 'smooth',
+      });
+    }
+  };
+
   const handleItemClick = (id: string) => {
     if (id === 'services') {
       if (currentView !== 'home') {
         onNavigate('home');
-        setTimeout(() => {
-          document.getElementById('services-section')?.scrollIntoView({ behavior: 'smooth' });
-        }, 120);
+        setTimeout(scrollToServicesSection, 150);
       } else {
-        document.getElementById('services-section')?.scrollIntoView({ behavior: 'smooth' });
+        scrollToServicesSection();
       }
       onClose();
       return;

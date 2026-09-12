@@ -415,11 +415,11 @@ export const AdminSupportTab: React.FC<AdminSupportTabProps> = ({
                         {isFromAdmin ? 'الإدارة (HEMA SERVICES)' : activeConversation.userName}
                       </span>
 
-                      <div className="flex items-center gap-1.5 max-w-[85%]">
+                      <div className="flex items-end gap-1.5 max-w-[90%] sm:max-w-[85%] min-w-0">
                         {/* Action buttons on hover */}
                         {!isDeleted && (
                           <div
-                            className={`opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 ${
+                            className={`opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 shrink-0 ${
                               isFromAdmin ? 'order-first' : 'order-last'
                             }`}
                           >
@@ -469,119 +469,126 @@ export const AdminSupportTab: React.FC<AdminSupportTabProps> = ({
                         )}
 
                         {/* Message Bubble Container */}
-                        <div
-                          className={`rounded-2xl p-3 text-xs leading-relaxed space-y-1.5 shadow-md ${
-                            isDeleted
-                              ? 'bg-slate-900/60 border border-slate-800 text-slate-500 italic'
-                              : isFromAdmin
-                              ? 'bg-emerald-950/40 border border-emerald-500/30 text-emerald-100 rounded-br-xs'
-                              : 'bg-[#121824] border border-white/[0.08] text-slate-200 rounded-bl-xs'
-                          }`}
-                        >
-                          {/* Quoted Message */}
-                          {msg.replyTo && (
-                            <div className="p-2 rounded-lg bg-black/40 border-r-2 border-emerald-400 text-[10px] text-slate-300 mb-1">
-                              <span className="font-bold text-emerald-400 block mb-0.5">
-                                {msg.replyTo.senderName}
-                              </span>
-                              <span className="line-clamp-2 text-slate-400">
-                                {msg.replyTo.text || msg.replyTo.fileName || 'مرفق'}
-                              </span>
-                            </div>
-                          )}
-
-                          {/* Image Attachment with Lightbox */}
-                          {msg.isImage && msg.fileUrl && !isDeleted && (
-                            <div className="space-y-1">
-                              <div
-                                onClick={() =>
-                                  onViewImageLightbox({
-                                    url: msg.fileUrl!,
-                                    name: msg.fileName,
-                                  })
-                                }
-                                className="rounded-xl overflow-hidden max-w-sm max-h-64 bg-black/40 cursor-pointer relative group/img border border-white/[0.08]"
-                              >
-                                <img
-                                  src={msg.fileUrl}
-                                  alt={msg.fileName || 'صورة مرفقة'}
-                                  className="w-full h-full object-cover transition-transform group-hover/img:scale-105"
-                                  referrerPolicy="no-referrer"
-                                />
-                                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity">
-                                  <span className="text-[10px] font-bold text-white bg-black/60 px-2 py-1 rounded-lg">
-                                    اضغط للمعاينة
+                        {(() => {
+                          const isPureImg = msg.isImage && !msg.text && !msg.replyTo;
+                          return (
+                            <div
+                              className={`rounded-2xl leading-relaxed space-y-1.5 shadow-md w-fit max-w-full min-w-0 font-cairo select-text break-words [overflow-wrap:anywhere] ${
+                                isPureImg ? 'p-1.5 sm:p-2' : 'p-2.5 sm:p-3 text-xs'
+                              } ${
+                                isDeleted
+                                  ? 'bg-slate-900/60 border border-slate-800 text-slate-500 italic'
+                                  : isFromAdmin
+                                  ? 'bg-emerald-950/40 border border-emerald-500/30 text-emerald-100 rounded-br-xs'
+                                  : 'bg-[#121824] border border-white/[0.08] text-slate-200 rounded-bl-xs'
+                              }`}
+                            >
+                              {/* Quoted Message */}
+                              {msg.replyTo && (
+                                <div className="p-2 rounded-lg bg-black/40 border-r-2 border-emerald-400 text-[10px] text-slate-300 mb-1 max-w-full overflow-hidden">
+                                  <span className="font-bold text-emerald-400 block mb-0.5 truncate">
+                                    {msg.replyTo.senderName}
+                                  </span>
+                                  <span className="line-clamp-2 text-slate-400">
+                                    {msg.replyTo.text || msg.replyTo.fileName || 'مرفق'}
                                   </span>
                                 </div>
-                              </div>
-                            </div>
-                          )}
+                              )}
 
-                          {/* Document or General File Attachment */}
-                          {!msg.isImage && msg.fileUrl && !isDeleted && (
-                            <div className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-black/30 border border-white/[0.06] text-[11px]">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <FileText className="w-5 h-5 text-emerald-400 shrink-0" />
-                                <div className="min-w-0">
-                                  <p className="font-medium text-slate-200 truncate">
-                                    {msg.fileName || 'ملف مرفق'}
-                                  </p>
-                                  <span className="text-[9px] text-slate-400 font-mono">
-                                    {formatFileSize(msg.fileSize)}
-                                  </span>
+                              {/* Image Attachment with Lightbox */}
+                              {msg.isImage && msg.fileUrl && !isDeleted && (
+                                <div className="w-fit max-w-full min-w-0 space-y-1">
+                                  <div
+                                    onClick={() =>
+                                      onViewImageLightbox({
+                                        url: msg.fileUrl!,
+                                        name: msg.fileName,
+                                      })
+                                    }
+                                    className="rounded-xl overflow-hidden max-w-full max-h-72 bg-black/40 cursor-pointer relative group/img border border-white/[0.08]"
+                                  >
+                                    <img
+                                      src={msg.fileUrl}
+                                      alt={msg.fileName || 'صورة مرفقة'}
+                                      className="w-auto h-auto max-w-full max-h-72 object-contain rounded-xl block transition-transform group-hover/img:scale-[1.01]"
+                                      referrerPolicy="no-referrer"
+                                    />
+                                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity">
+                                      <span className="text-[10px] font-bold text-white bg-black/60 px-2 py-1 rounded-lg">
+                                        اضغط للمعاينة
+                                      </span>
+                                    </div>
+                                  </div>
                                 </div>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => downloadAttachment(msg.fileUrl!, msg.fileName || 'file')}
-                                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors shrink-0"
-                                title="تنزيل الملف"
-                              >
-                                <Download className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          )}
+                              )}
 
-                          {/* Voice Note Player */}
-                          {msg.audioUrl && !isDeleted && (
-                            <div className="pt-1">
-                              <AudioMessagePlayer
-                                audioUrl={msg.audioUrl}
-                                duration={msg.audioDuration}
-                                isSender={isFromAdmin}
-                                senderName={isFromAdmin ? 'الإدارة' : activeConversation.userName}
-                                createdAt={msg.createdAt}
-                              />
-                            </div>
-                          )}
+                              {/* Document or General File Attachment */}
+                              {!msg.isImage && msg.fileUrl && !isDeleted && (
+                                <div className="flex items-center justify-between gap-3 p-2 rounded-xl bg-black/30 border border-white/[0.06] text-[11px] max-w-[260px] sm:max-w-[280px] min-w-0">
+                                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                                    <FileText className="w-5 h-5 text-emerald-400 shrink-0" />
+                                    <div className="min-w-0 flex-1">
+                                      <p className="font-medium text-slate-200 truncate" title={msg.fileName}>
+                                        {msg.fileName || 'ملف مرفق'}
+                                      </p>
+                                      <span className="text-[9px] text-slate-400 font-mono">
+                                        {formatFileSize(msg.fileSize)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => downloadAttachment(msg.fileUrl!, msg.fileName || 'file')}
+                                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors shrink-0 cursor-pointer"
+                                    title="تنزيل الملف"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              )}
 
-                          {/* Text Message */}
-                          {msg.text && (
-                            <p className="whitespace-pre-line break-words text-xs">
-                              {msg.text}
-                            </p>
-                          )}
+                              {/* Voice Note Player */}
+                              {msg.audioUrl && !isDeleted && (
+                                <div className="pt-1 max-w-[280px] sm:max-w-[320px] min-w-0">
+                                  <AudioMessagePlayer
+                                    audioUrl={msg.audioUrl}
+                                    duration={msg.audioDuration}
+                                    isSender={isFromAdmin}
+                                    senderName={isFromAdmin ? 'الإدارة' : activeConversation.userName}
+                                    createdAt={msg.createdAt}
+                                  />
+                                </div>
+                              )}
 
-                          {/* Bubble Footer: Time & Status */}
-                          <div className="flex items-center justify-end gap-1.5 pt-1 text-[9px] text-slate-400 font-mono select-none">
-                            {msg.isEdited && <span className="text-slate-500">(معدلة)</span>}
-                            <span>
-                              {new Date(msg.createdAt).toLocaleTimeString('ar-EG', {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </span>
-                            {isFromAdmin && (
-                              <span title={msg.readAt ? 'تمت القراءة من العميل' : 'تم الإرسال'}>
-                                {msg.readAt ? (
-                                  <Check className="w-3 h-3 text-emerald-400 inline" />
-                                ) : (
-                                  <Check className="w-3 h-3 text-slate-500 inline" />
+                              {/* Text Message */}
+                              {msg.text && (
+                                <p className="whitespace-pre-line break-words text-xs">
+                                  {msg.text}
+                                </p>
+                              )}
+
+                              {/* Bubble Footer: Time & Status */}
+                              <div className="flex items-center justify-end gap-1.5 pt-1 text-[9px] text-slate-400 font-mono select-none">
+                                {msg.isEdited && <span className="text-slate-500">(معدلة)</span>}
+                                <span>
+                                  {new Date(msg.createdAt).toLocaleTimeString('ar-EG', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </span>
+                                {isFromAdmin && (
+                                  <span title={msg.readAt ? 'تمت القراءة من العميل' : 'تم الإرسال'}>
+                                    {msg.readAt ? (
+                                      <Check className="w-3 h-3 text-emerald-400 inline" />
+                                    ) : (
+                                      <Check className="w-3 h-3 text-slate-500 inline" />
+                                    )}
+                                  </span>
                                 )}
-                              </span>
-                            )}
-                          </div>
-                        </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   );

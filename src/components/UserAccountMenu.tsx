@@ -65,10 +65,10 @@ export const UserAccountMenu: React.FC<UserAccountMenuProps> = ({
         {isOpen && (
           <motion.div
             id="user-account-dropdown-panel"
-            initial={{ opacity: 0, y: -6, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -4, scale: 0.98 }}
-            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
             className="absolute top-14 right-0 w-72 max-w-[calc(100vw-2rem)] bg-[#0d121c] border border-white/[0.08] rounded-2xl shadow-2xl shadow-black/80 z-50 overflow-hidden text-right select-none"
           >
             {currentUser ? (
@@ -195,12 +195,12 @@ export const UserAccountMenu: React.FC<UserAccountMenuProps> = ({
         isOpen={showLogoutConfirm}
         onClose={() => setShowLogoutConfirm(false)}
         onConfirm={handleConfirmLogout}
-        title="تأكيد تسجيل الخروج"
-        description="هل أنت متأكد من رغبتك في تسجيل الخروج من حسابك؟"
+        title="تسجيل الخروج"
+        description="هل أنت متأكد أنك تريد تسجيل الخروج من حسابك؟"
         confirmLabel="تسجيل الخروج"
-        cancelLabel="البقاء مسجلاً"
-        isDestructive={true}
-        isLoading={isLoggingOut}
+        cancelLabel="إلغاء"
+        destructive={true}
+        loading={isLoggingOut}
         icon="logout"
       />
     </>

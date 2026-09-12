@@ -78,10 +78,10 @@ export const NotificationsPanel: React.FC<NotificationsPanelProps> = ({
           <motion.div
             key="notif-panel"
             id="notifications-dropdown-panel"
-            initial={{ opacity: 0, y: -6, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -4, scale: 0.98 }}
-            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
             className="fixed inset-x-3 top-16 sm:absolute sm:top-14 sm:right-0 sm:left-auto sm:inset-x-auto sm:w-96 max-h-[82vh] sm:max-h-[520px] bg-[#0d121c] border border-white/[0.08] rounded-2xl shadow-2xl z-50 overflow-hidden text-right flex flex-col select-none"
           >
             <div className="flex items-center justify-between px-4 py-3.5 border-b border-white/[0.06] bg-[#121824] shrink-0">

@@ -2,16 +2,24 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Play, Pause, Volume2, AlertCircle } from 'lucide-react';
 
 interface AudioMessagePlayerProps {
-  src: string;
+  src?: string;
+  audioUrl?: string;
   duration?: number;
   isMine?: boolean;
+  isSender?: boolean;
+  senderName?: string;
+  createdAt?: string;
 }
 
 export const AudioMessagePlayer: React.FC<AudioMessagePlayerProps> = ({
   src,
+  audioUrl,
   duration: initialDuration,
-  isMine = false,
+  isMine,
+  isSender,
 }) => {
+  const resolvedSrc = src || audioUrl || '';
+  const mine = Boolean(isMine ?? isSender);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(initialDuration || 0);
@@ -99,7 +107,7 @@ export const AudioMessagePlayer: React.FC<AudioMessagePlayerProps> = ({
       audio.removeEventListener('play', handlePlay);
       audio.removeEventListener('error', handleError);
     };
-  }, [src, initialDuration]);
+  }, [resolvedSrc, initialDuration]);
 
   // High precision playback synchronization via requestAnimationFrame
   useEffect(() => {
@@ -253,10 +261,10 @@ export const AudioMessagePlayer: React.FC<AudioMessagePlayerProps> = ({
     return (
       <div
         dir="ltr"
-        className="flex items-center gap-2 p-2 sm:p-2.5 rounded-xl border border-red-500/30 bg-red-950/30 text-red-300 text-xs min-w-[210px]"
+        className="flex items-center gap-2 p-2 sm:p-2.5 rounded-xl border border-red-500/30 bg-red-950/30 text-red-300 text-xs w-full max-w-[280px] min-w-0"
       >
         <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
-        <span className="font-cairo">تعذر تشغيل الملف الصوتي</span>
+        <span className="font-cairo truncate">تعذر تشغيل الملف الصوتي</span>
       </div>
     );
   }
@@ -264,20 +272,20 @@ export const AudioMessagePlayer: React.FC<AudioMessagePlayerProps> = ({
   return (
     <div
       dir="ltr"
-      className={`flex items-center gap-2.5 p-2 sm:p-2.5 rounded-2xl border min-w-[210px] sm:min-w-[260px] max-w-[320px] select-none transition-all shadow-sm ${
-        isMine
+      className={`flex items-center gap-2 sm:gap-2.5 p-2 sm:p-2.5 rounded-2xl border w-full max-w-[280px] sm:max-w-[320px] min-w-0 select-none transition-all shadow-sm ${
+        mine
           ? 'bg-emerald-950/60 border-emerald-500/30 text-emerald-50'
           : 'bg-[#090e18] border-white/[0.08] text-slate-200'
       }`}
     >
-      <audio ref={audioRef} src={src} preload="metadata" />
+      <audio ref={audioRef} src={resolvedSrc} preload="metadata" />
 
       {/* Play/Pause Button */}
       <button
         type="button"
         onClick={togglePlay}
-        className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all active:scale-95 shadow-sm cursor-pointer ${
-          isMine
+        className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center shrink-0 transition-all active:scale-95 shadow-sm cursor-pointer ${
+          mine
             ? 'bg-emerald-400 hover:bg-emerald-300 text-slate-950 shadow-emerald-400/20'
             : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20'
         }`}
@@ -285,14 +293,14 @@ export const AudioMessagePlayer: React.FC<AudioMessagePlayerProps> = ({
         aria-label={isPlaying ? 'إيقاف مؤقت' : 'تشغيل الرسالة الصوتية'}
       >
         {isPlaying ? (
-          <Pause className="w-4 h-4 fill-current" />
+          <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
         ) : (
-          <Play className="w-4 h-4 fill-current ml-0.5" />
+          <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current ml-0.5" />
         )}
       </button>
 
       {/* Progress Track & Times */}
-      <div className="flex-1 flex flex-col justify-center gap-1.5 min-w-0">
+      <div className="flex-1 flex flex-col justify-center gap-1 min-w-0">
         {/* Interactive Scrubbing Track */}
         <div
           ref={trackRef}
@@ -308,14 +316,14 @@ export const AudioMessagePlayer: React.FC<AudioMessagePlayerProps> = ({
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerCancel}
           onKeyDown={handleKeyDown}
-          className="relative w-full h-6 flex items-center cursor-pointer touch-none group"
+          className="relative w-full h-5 sm:h-6 flex items-center cursor-pointer touch-none group"
         >
           {/* Base Track Bar */}
           <div className="w-full h-1.5 rounded-full bg-white/[0.12] overflow-hidden relative group-hover:h-2 transition-all">
             {/* Filled Progress Bar */}
             <div
               className={`h-full rounded-full transition-none ${
-                isMine ? 'bg-emerald-300' : 'bg-emerald-400'
+                mine ? 'bg-emerald-300' : 'bg-emerald-400'
               }`}
               style={{ width: `${progressPercent}%` }}
             />
@@ -324,14 +332,14 @@ export const AudioMessagePlayer: React.FC<AudioMessagePlayerProps> = ({
           {/* Scrubbing Thumb Indicator */}
           <div
             className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full border-2 border-[#090e18] shadow-md transition-transform pointer-events-none ${
-              isMine ? 'bg-emerald-300' : 'bg-emerald-400'
+              mine ? 'bg-emerald-300' : 'bg-emerald-400'
             } ${isScrubbing ? 'scale-125' : 'scale-90 opacity-90 group-hover:scale-110'}`}
             style={{ left: `${progressPercent}%` }}
           />
         </div>
 
         {/* Timestamps */}
-        <div className="flex items-center justify-between text-[10.5px] font-payment-digits text-slate-400 px-0.5 leading-none">
+        <div className="flex items-center justify-between text-[10px] sm:text-[10.5px] font-payment-digits text-slate-400 px-0.5 leading-none">
           <span className={`tabular-nums font-mono ${isScrubbing ? 'text-emerald-400 font-bold' : ''}`}>
             {formatTime(currentTime)}
           </span>
@@ -346,7 +354,7 @@ export const AudioMessagePlayer: React.FC<AudioMessagePlayerProps> = ({
       <button
         type="button"
         onClick={cyclePlaybackRate}
-        className="px-2 py-1 rounded-lg text-[10px] font-mono font-bold tracking-tight bg-white/[0.06] hover:bg-white/[0.12] text-slate-300 hover:text-emerald-400 transition-colors shrink-0 cursor-pointer border border-white/[0.06]"
+        className="px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-lg text-[9.5px] sm:text-[10px] font-mono font-bold tracking-tight bg-white/[0.06] hover:bg-white/[0.12] text-slate-300 hover:text-emerald-400 transition-colors shrink-0 cursor-pointer border border-white/[0.06]"
         title="سرعة التشغيل"
         aria-label={`سرعة التشغيل ${playbackRate}x`}
       >

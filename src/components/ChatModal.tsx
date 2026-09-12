@@ -696,9 +696,10 @@ export const ChatModal: React.FC<ChatModalProps> = ({
       recordingStartTimeRef.current = startTime;
 
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         stream.getTracks().forEach((track) => track.stop());
+        if (audioChunksRef.current.length === 0) return; // Cancelled/discarded
 
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         const durationSeconds = Math.max(
           1,
           Math.round((Date.now() - (recordingStartTimeRef.current || startTime)) / 1000)
@@ -724,6 +725,19 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     } catch (err) {
       console.error(err);
       setError('يرجى السماح بالوصول إلى الميكروفون لتسجيل الرسالة الصوتية');
+    }
+  };
+
+  const cancelRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      audioChunksRef.current = [];
+      try {
+        mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
+      } catch {}
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      setRecordingSeconds(0);
+      if (timerRef.current) clearInterval(timerRef.current);
     }
   };
 
@@ -979,7 +993,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                     </div>
                   )}
 
-                  <div className="flex items-center gap-1.5 max-w-[88%] sm:max-w-[82%]">
+                  <div className="flex items-end gap-1.5 max-w-[92%] sm:max-w-[85%] min-w-0">
                     {/* Actions Toolbar: Reply, Copy, Edit, Delete */}
                     {!isDeleted && (
                       <div
@@ -1046,162 +1060,172 @@ export const ChatModal: React.FC<ChatModalProps> = ({
 
                     {/* Deleted Message Bubble */}
                     {isDeleted ? (
-                      <div className="flex items-center gap-2 py-2 px-3.5 rounded-2xl bg-slate-900/50 border border-white/[0.06] text-slate-400 italic text-xs shadow-sm font-cairo">
+                      <div className="flex items-center gap-2 py-2 px-3.5 rounded-2xl bg-slate-900/50 border border-white/[0.06] text-slate-400 italic text-xs shadow-sm font-cairo min-w-0">
                         <Ban className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                         <span>تم حذف هذه الرسالة</span>
                       </div>
                     ) : (
-                      <div
-                        className={`rounded-2xl p-3 sm:p-3.5 text-sm sm:text-[14.5px] leading-relaxed shadow-sm flex-1 font-cairo select-text break-words [overflow-wrap:anywhere] transition-colors ${
-                          isMine
-                            ? 'bg-gradient-to-br from-[#0e3025] to-[#0a2019] text-emerald-50 border border-emerald-500/35 rounded-tl-sm shadow-md shadow-emerald-950/20'
-                            : 'bg-[#111726] text-slate-100 border border-white/[0.08] rounded-tr-sm shadow-sm'
-                        }`}
-                      >
-                        {/* Order Context Tag if message is related to an order */}
-                        {msg.orderNumber && (
+                      (() => {
+                        const isImgMsg = Boolean(msg.type === 'image' || msg.isImage);
+                        const isPureImage = isImgMsg && !msg.text && !msg.replyTo && !msg.orderNumber;
+                        return (
                           <div
-                            className={`inline-flex items-center gap-1.5 mb-2 px-2.5 py-0.5 rounded-md text-[10.5px] font-mono font-medium ${
+                            className={`rounded-2xl leading-relaxed shadow-sm w-fit max-w-full min-w-0 font-cairo select-text break-words [overflow-wrap:anywhere] transition-colors ${
+                              isPureImage ? 'p-1.5 sm:p-2' : 'p-3 sm:p-3.5 text-sm sm:text-[14.5px]'
+                            } ${
                               isMine
-                                ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/30'
-                                : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                ? 'bg-gradient-to-br from-[#0e3025] to-[#0a2019] text-emerald-50 border border-emerald-500/35 rounded-tl-sm shadow-md shadow-emerald-950/20'
+                                : 'bg-[#111726] text-slate-100 border border-white/[0.08] rounded-tr-sm shadow-sm'
                             }`}
                           >
-                            <Package className="w-3 h-3 shrink-0" />
-                            <span>طلب #{msg.orderNumber}</span>
-                          </div>
-                        )}
-
-                        {/* Quoted Reply Preview */}
-                        {msg.replyTo && (
-                          <div
-                            className={`mb-2 p-2 rounded-lg border-r-2 text-xs font-cairo leading-relaxed ${
-                              isMine
-                                ? 'bg-black/30 border-emerald-400 text-slate-200'
-                                : 'bg-black/40 border-emerald-500 text-slate-300'
-                            }`}
-                          >
-                            <div className="font-bold text-[11px] text-emerald-300 mb-0.5 flex items-center gap-1">
-                              <Reply className="w-3 h-3 shrink-0" />
-                              <span>{msg.replyTo.senderName}</span>
-                            </div>
-                            <div className="truncate text-[11px] text-slate-300">
-                              {msg.replyTo.text === 'تم حذف هذه الرسالة' ||
-                              messages.find((m) => m.id === msg.replyTo?.id)?.isDeleted ? (
-                                <span className="italic opacity-70">تم حذف هذه الرسالة</span>
-                              ) : (
-                                msg.replyTo.text ||
-                                (msg.replyTo.type === 'image'
-                                  ? '📷 صورة'
-                                  : msg.replyTo.type === 'audio'
-                                  ? '🎙️ رسالة صوتية'
-                                  : '📎 ملف مرفق')
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Text message or caption */}
-                        {msg.text && (
-                          <p
-                            className="whitespace-pre-wrap font-cairo font-normal leading-[1.65] break-words [overflow-wrap:anywhere] [unicode-bidi:plaintext]"
-                            dir="auto"
-                          >
-                            {msg.text}
-                          </p>
-                        )}
-
-                        {/* Image message */}
-                        {(msg.type === 'image' || msg.isImage) && msg.fileUrl && (
-                          <div className="space-y-2 min-w-[200px] max-w-sm mt-2">
-                            <div
-                              onClick={() => setViewingImage({ url: msg.fileUrl!, name: msg.fileName })}
-                              className="group relative rounded-xl overflow-hidden bg-black/50 border border-white/[0.08] max-h-64 sm:max-h-72 flex items-center justify-center cursor-pointer"
-                              title="اضغط لعرض الصورة بالحجم الكامل"
-                            >
-                              <img
-                                src={msg.fileUrl}
-                                alt={msg.fileName || 'صورة'}
-                                className="w-full max-h-64 sm:max-h-72 object-contain rounded-xl group-hover:scale-[1.02] transition-transform duration-200"
-                                referrerPolicy="no-referrer"
-                                loading="lazy"
-                              />
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white text-xs font-cairo backdrop-blur-[2px]">
-                                <Eye className="w-4 h-4" />
-                                <span>عرض بالحجم الكامل</span>
-                              </div>
-                            </div>
-                            <div className="flex items-center justify-between gap-2 pt-1">
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                <ImageIcon className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
-                                <span className="text-[11px] truncate text-slate-200 font-medium">
-                                  {msg.fileName || 'صورة'}
-                                </span>
-                                {Boolean(msg.fileSize) && (
-                                  <span className="text-[10px] text-slate-400 font-payment-digits">
-                                    ({formatFileSize(msg.fileSize)})
-                                  </span>
-                                )}
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => downloadAttachment(msg.fileUrl!, msg.fileName || 'image.jpg')}
-                                className="inline-flex items-center gap-1 py-1 px-2.5 rounded-lg text-[11px] font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-colors cursor-pointer shadow-sm"
+                            {/* Order Context Tag if message is related to an order */}
+                            {msg.orderNumber && (
+                              <div
+                                className={`inline-flex items-center gap-1.5 mb-2 px-2.5 py-0.5 rounded-md text-[10.5px] font-mono font-medium ${
+                                  isMine
+                                    ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/30'
+                                    : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                }`}
                               >
-                                <Download className="w-3 h-3" />
-                                <span>تنزيل</span>
-                              </button>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Document / File */}
-                        {msg.type === 'file' && !msg.isImage && msg.fileUrl && (
-                          <div className="space-y-2 min-w-[210px] max-w-sm mt-2">
-                            <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-black/30 border border-white/[0.08]">
-                              <div className="p-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 shrink-0">
-                                {getFileCategory(msg.fileName) === 'sheet' ? (
-                                  <FileSpreadsheet className="w-5 h-5" />
-                                ) : getFileCategory(msg.fileName) === 'archive' ? (
-                                  <FileArchive className="w-5 h-5" />
-                                ) : (
-                                  <FileText className="w-5 h-5" />
-                                )}
+                                <Package className="w-3 h-3 shrink-0" />
+                                <span>طلب #{msg.orderNumber}</span>
                               </div>
-                              <div className="flex-1 min-w-0 text-right">
-                                <p className="font-bold truncate text-xs text-slate-100">
-                                  {msg.fileName || 'ملف مرفق'}
-                                </p>
-                                {Boolean(msg.fileSize) && (
-                                  <p className="text-[10.5px] text-slate-400 font-payment-digits mt-0.5">
-                                    الحجم: {formatFileSize(msg.fileSize)}
-                                  </p>
-                                )}
+                            )}
+
+                            {/* Quoted Reply Preview */}
+                            {msg.replyTo && (
+                              <div
+                                className={`mb-2 p-2 rounded-lg border-r-2 text-xs font-cairo leading-relaxed min-w-0 max-w-full overflow-hidden ${
+                                  isMine
+                                    ? 'bg-black/30 border-emerald-400 text-slate-200'
+                                    : 'bg-black/40 border-emerald-500 text-slate-300'
+                                }`}
+                              >
+                                <div className="font-bold text-[11px] text-emerald-300 mb-0.5 flex items-center gap-1 truncate">
+                                  <Reply className="w-3 h-3 shrink-0" />
+                                  <span className="truncate">{msg.replyTo.senderName}</span>
+                                </div>
+                                <div className="truncate text-[11px] text-slate-300">
+                                  {msg.replyTo.text === 'تم حذف هذه الرسالة' ||
+                                  messages.find((m) => m.id === msg.replyTo?.id)?.isDeleted ? (
+                                    <span className="italic opacity-70">تم حذف هذه الرسالة</span>
+                                  ) : (
+                                    msg.replyTo.text ||
+                                    (msg.replyTo.type === 'image'
+                                      ? '📷 صورة'
+                                      : msg.replyTo.type === 'audio'
+                                      ? '🎙️ رسالة صوتية'
+                                      : '📎 ملف مرفق')
+                                  )}
+                                </div>
                               </div>
-                            </div>
+                            )}
 
-                            <button
-                              type="button"
-                              onClick={() => downloadAttachment(msg.fileUrl!, msg.fileName || 'document')}
-                              className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-colors cursor-pointer shadow-sm"
-                            >
-                              <Download className="w-3.5 h-3.5" />
-                              <span>تحميل الملف</span>
-                            </button>
-                          </div>
-                        )}
+                            {/* Text message or caption */}
+                            {msg.text && (
+                              <p
+                                className={`whitespace-pre-wrap font-cairo font-normal leading-[1.65] break-words [overflow-wrap:anywhere] [unicode-bidi:plaintext] ${
+                                  isImgMsg ? 'mb-2 px-1' : ''
+                                }`}
+                                dir="auto"
+                              >
+                                {msg.text}
+                              </p>
+                            )}
 
-                        {/* Voice message */}
-                        {msg.type === 'audio' && msg.audioUrl && (
-                          <div className="mt-1">
-                            <AudioMessagePlayer
-                              src={msg.audioUrl}
-                              duration={msg.audioDuration}
-                              isMine={isMine}
-                            />
+                            {/* Image message */}
+                            {isImgMsg && msg.fileUrl && (
+                              <div className="w-fit max-w-full min-w-0 space-y-1.5">
+                                <div
+                                  onClick={() => setViewingImage({ url: msg.fileUrl!, name: msg.fileName })}
+                                  className="group relative rounded-xl overflow-hidden bg-black/50 border border-white/[0.08] max-h-72 sm:max-h-80 flex items-center justify-center cursor-pointer max-w-full"
+                                  title="اضغط لعرض الصورة بالحجم الكامل"
+                                >
+                                  <img
+                                    src={msg.fileUrl}
+                                    alt={msg.fileName || 'صورة'}
+                                    className="w-auto h-auto max-w-full max-h-72 sm:max-h-80 object-contain rounded-xl block group-hover:scale-[1.01] transition-transform duration-200"
+                                    referrerPolicy="no-referrer"
+                                    loading="lazy"
+                                  />
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white text-xs font-cairo backdrop-blur-[2px]">
+                                    <Eye className="w-4 h-4" />
+                                    <span>عرض بالحجم الكامل</span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-between gap-2 pt-1 px-1 min-w-0">
+                                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                    <ImageIcon className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+                                    <span className="text-[11px] truncate text-slate-200 font-medium max-w-[130px] sm:max-w-[200px]">
+                                      {msg.fileName || 'صورة'}
+                                    </span>
+                                    {Boolean(msg.fileSize) && (
+                                      <span className="text-[10px] text-slate-400 font-payment-digits shrink-0">
+                                        ({formatFileSize(msg.fileSize)})
+                                      </span>
+                                    )}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => downloadAttachment(msg.fileUrl!, msg.fileName || 'image.jpg')}
+                                    className="inline-flex items-center gap-1 py-1 px-2.5 rounded-lg text-[11px] font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition-colors cursor-pointer shadow-sm shrink-0"
+                                  >
+                                    <Download className="w-3 h-3 shrink-0" />
+                                    <span>تنزيل</span>
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Document / File */}
+                            {msg.type === 'file' && !msg.isImage && msg.fileUrl && (
+                              <div className="w-full max-w-[250px] sm:max-w-[280px] min-w-0 space-y-2 mt-1">
+                                <div className="flex items-center gap-2.5 p-2 rounded-xl bg-black/30 border border-white/[0.08] min-w-0">
+                                  <div className="p-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 shrink-0">
+                                    {getFileCategory(msg.fileName) === 'sheet' ? (
+                                      <FileSpreadsheet className="w-5 h-5" />
+                                    ) : getFileCategory(msg.fileName) === 'archive' ? (
+                                      <FileArchive className="w-5 h-5" />
+                                    ) : (
+                                      <FileText className="w-5 h-5" />
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0 text-right">
+                                    <p className="font-bold truncate text-xs text-slate-100" title={msg.fileName}>
+                                      {msg.fileName || 'ملف مرفق'}
+                                    </p>
+                                    {Boolean(msg.fileSize) && (
+                                      <p className="text-[10px] text-slate-400 font-payment-digits mt-0.5">
+                                        الحجم: {formatFileSize(msg.fileSize)}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => downloadAttachment(msg.fileUrl!, msg.fileName || 'document')}
+                                  className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-bold bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-slate-950 transition-all cursor-pointer shadow-sm min-w-0"
+                                >
+                                  <Download className="w-3.5 h-3.5 shrink-0" />
+                                  <span className="truncate">تحميل الملف</span>
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Voice message */}
+                            {msg.type === 'audio' && msg.audioUrl && (
+                              <div className="mt-1 w-full max-w-[280px] sm:max-w-[320px] min-w-0">
+                                <AudioMessagePlayer
+                                  src={msg.audioUrl}
+                                  duration={msg.audioDuration}
+                                  isMine={isMine}
+                                />
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
+                        );
+                      })()
                     )}
                   </div>
 
@@ -1254,13 +1278,13 @@ export const ChatModal: React.FC<ChatModalProps> = ({
           isOpen={Boolean(msgToDelete)}
           onClose={() => setMsgToDelete(null)}
           onConfirm={confirmDelete}
-          title="تأكيد حذف الرسالة"
-          description="هل أنت متأكد من رغبتك في حذف هذه الرسالة نهائياً من المحادثة؟"
-          confirmLabel="نعم، حذف الرسالة"
+          title="حذف الرسالة"
+          description="هل أنت متأكد من حذف هذه الرسالة؟ لا يمكن التراجع عن هذا الإجراء."
+          confirmLabel="حذف"
           cancelLabel="إلغاء"
-          isDestructive={true}
+          destructive={true}
           icon="trash"
-          isLoading={deletingMsg}
+          loading={deletingMsg}
         />
 
         {/* Floating New Messages Indicator */}
@@ -1505,21 +1529,33 @@ export const ChatModal: React.FC<ChatModalProps> = ({
 
               {/* Recording active indicator */}
               {isRecording ? (
-                <div className="flex items-center justify-between p-2.5 sm:p-3 rounded-xl bg-red-950/40 border border-red-500/40">
-                  <div className="flex items-center gap-2 text-red-400 min-w-0">
+                <div className="flex items-center justify-between p-2 sm:p-2.5 rounded-xl bg-red-950/40 border border-red-500/40 min-w-0 w-full gap-2">
+                  <div className="flex items-center gap-2 text-red-400 min-w-0 flex-1">
                     <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping shrink-0" />
                     <span className="text-xs font-semibold truncate font-mono">
                       جاري التسجيل ({formatAudioDuration(recordingSeconds)})...
                     </span>
                   </div>
-                  <button
-                    onClick={stopRecording}
-                    id="stop-recording-btn"
-                    className="flex items-center gap-1.5 h-9 px-3 rounded-lg bg-red-500 hover:bg-red-600 active:scale-95 text-white font-semibold text-xs transition-all shrink-0 cursor-pointer shadow-sm shadow-red-500/25 font-cairo"
-                  >
-                    <Square className="w-3.5 h-3.5 fill-current" />
-                    <span>إيقاف ومعاينة</span>
-                  </button>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={cancelRecording}
+                      className="flex items-center gap-1 h-8 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-all cursor-pointer font-cairo"
+                      title="إلغاء التسجيل"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                      <span className="hidden sm:inline">إلغاء</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={stopRecording}
+                      id="stop-recording-btn"
+                      className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-red-500 hover:bg-red-600 active:scale-95 text-white font-semibold text-xs transition-all shrink-0 cursor-pointer shadow-sm shadow-red-500/25 font-cairo"
+                    >
+                      <Square className="w-3.5 h-3.5 fill-current" />
+                      <span>إيقاف ومعاينة</span>
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <form onSubmit={handleSendMessage} className="flex items-end gap-1.5 sm:gap-2 w-full min-w-0">
