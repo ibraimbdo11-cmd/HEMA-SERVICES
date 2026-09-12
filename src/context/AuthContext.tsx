@@ -9,7 +9,7 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import { auth, googleProvider, fbSignOut } from '../lib/firebase';
-import { api, setApiAuth } from '../lib/api';
+import { api, setApiAuth, clearApiAuth } from '../lib/api';
 import { UserProfile } from '../types';
 
 interface AuthContextType {
@@ -71,7 +71,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await syncBackendUser(user);
       } else {
         setProfile(null);
-        setApiAuth('', '');
+        clearApiAuth();
       }
       setLoading(false);
     });
@@ -119,11 +119,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     try {
       setIsLoggingOut(true);
+      clearApiAuth();
       await api.logoutSession();
       await fbSignOut(auth);
       setCurrentUser(null);
       setProfile(null);
-      setApiAuth('', '');
     } finally {
       setTimeout(() => {
         setIsLoggingOut(false);

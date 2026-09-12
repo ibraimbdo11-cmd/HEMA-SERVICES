@@ -15,12 +15,16 @@ let cachedToken: string | null = null;
 let currentUserId = '';
 let currentUserEmail = '';
 
-export function setApiAuth(userId: string, email: string, token?: string) {
+export function setApiAuth(userId: string, email: string, token?: string | null) {
   currentUserId = userId;
   currentUserEmail = email;
-  if (token !== undefined) {
-    cachedToken = token;
-  }
+  cachedToken = token ?? null;
+}
+
+export function clearApiAuth() {
+  currentUserId = '';
+  currentUserEmail = '';
+  cachedToken = null;
 }
 
 export async function getFreshToken(): Promise<string | null> {
@@ -33,7 +37,9 @@ export async function getFreshToken(): Promise<string | null> {
   } catch (err) {
     console.error('Failed to get fresh Firebase ID token:', err);
   }
-  return cachedToken;
+  // When no user is authenticated, guarantee no stale cached token is returned
+  cachedToken = null;
+  return null;
 }
 
 async function getAuthHeaders(extraHeaders?: Record<string, string>): Promise<HeadersInit> {
@@ -139,11 +145,20 @@ export const api = {
   },
 
   // Orders
-  async getOrders(adminFilterUserId?: string): Promise<OrderItem[]> {
+  // Customer Orders (Strictly returns authenticated user's own orders)
+  async getOrders(): Promise<OrderItem[]> {
     const headers = await getAuthHeaders();
-    const url = adminFilterUserId ? `/api/orders?userId=${encodeURIComponent(adminFilterUserId)}` : '/api/orders';
-    const res = await fetch(url, { headers });
+    const res = await fetch('/api/orders', { headers });
     if (!res.ok) throw new Error('فشل في جلب الطلبات');
+    return res.json();
+  },
+
+  // Admin Orders (Dedicated for Admin Dashboard with optional filter by customer)
+  async getAdminOrders(userId?: string): Promise<OrderItem[]> {
+    const headers = await getAuthHeaders();
+    const url = userId ? `/api/admin/orders?userId=${encodeURIComponent(userId)}` : '/api/admin/orders';
+    const res = await fetch(url, { headers });
+    if (!res.ok) throw new Error('فشل في جلب طلبات الإدارة');
     return res.json();
   },
 
@@ -452,6 +467,7 @@ export const api = {
     onNotificationRead?: (data: { userId: string; notificationId: string }) => void;
     onNotificationsRead?: (data: { userId: string }) => void;
     onConversationUnreadUpdated?: (data: { conversationId: string; userId: string; unreadByUser: number; unreadByAdmin: number }) => void;
+    onOrderStatusUpdated?: (data: { userId: string; order: OrderItem }) => void;
     // Backward compatibility optional fields (ignored for auth security)
     userId?: string;
     role?: 'admin' | 'user';
@@ -596,6 +612,17 @@ export const api = {
               params.onConversationUnreadUpdated!(data);
             } catch (err) {
               console.error('Failed to parse SSE conversation_unread_updated', err);
+            }
+          });
+        }
+
+        if (params.onOrderStatusUpdated) {
+          es.addEventListener('order_status_updated', (e) => {
+            try {
+              const data = JSON.parse(e.data);
+              params.onOrderStatusUpdated!(data);
+            } catch (err) {
+              console.error('Failed to parse SSE order_status_updated', err);
             }
           });
         }

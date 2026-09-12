@@ -242,7 +242,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
   // Load Orders
   const loadOrders = async () => {
     try {
-      const data = await api.getOrders();
+      const data = await api.getAdminOrders();
       setOrdersList(data);
     } catch (err) {
       console.error(err);
@@ -309,7 +309,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
     if (activeTab === 'orders') loadOrders();
     if (activeTab === 'services') loadServices();
     if (activeTab === 'users') loadUsers();
-    if (activeTab === 'conversations') loadConversations();
+    if (activeTab === 'support') loadConversations();
     if (activeTab === 'notifications') loadNotifications();
     if (activeTab === 'settings') loadSettings();
   }, [activeTab, isAdmin]);
@@ -322,7 +322,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
       else if (activeTab === 'orders') await loadOrders();
       else if (activeTab === 'services') await loadServices();
       else if (activeTab === 'users') await loadUsers();
-      else if (activeTab === 'conversations') await loadConversations();
+      else if (activeTab === 'support') await loadConversations();
       else if (activeTab === 'notifications') await loadNotifications();
       else if (activeTab === 'settings') await loadSettings();
     } finally {
@@ -919,7 +919,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
         createdAt: new Date().toISOString(),
       });
     }
-    setActiveTab('conversations');
+    setActiveTab('support');
   };
 
   const handleContactUser = (user: UserProfile) => {
@@ -936,7 +936,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
         createdAt: new Date().toISOString(),
       });
     }
-    setActiveTab('conversations');
+    setActiveTab('support');
   };
 
   return (
@@ -976,7 +976,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
             setSelectedOrder(null);
             setActiveTab('orders');
           }}
-          onNavigateToSupport={() => setActiveTab('conversations')}
+          onNavigateToSupport={() => setActiveTab('support')}
           onBackToHome={onBackToHome}
         />
 
@@ -1044,7 +1044,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBackToHome }) 
             />
           )}
 
-          {activeTab === 'conversations' && (
+          {activeTab === 'support' && (
             <AdminSupportTab
               conversationsList={conversationsList}
               activeConversation={activeConversation}

@@ -86,10 +86,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const currentUid = currentUser?.uid || null;
     activeUserRef.current = currentUid;
 
+    // Immediate clean wipe whenever account changes or on logout to prevent cross-account leakage
+    setNotifications([]);
+    setUnreadCount(0);
+
     if (!currentUser) {
-      // Immediate clean wipe on logout to prevent cross-account leakage
-      setNotifications([]);
-      setUnreadCount(0);
       return;
     }
 

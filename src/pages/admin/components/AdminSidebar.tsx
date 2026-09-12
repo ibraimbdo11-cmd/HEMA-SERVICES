@@ -19,7 +19,7 @@ export type AdminTabId =
   | 'orders'
   | 'services'
   | 'users'
-  | 'conversations'
+  | 'support'
   | 'notifications'
   | 'settings';
 
@@ -81,7 +81,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
 
   const supportNavItems = [
     {
-      id: 'conversations' as AdminTabId,
+      id: 'support' as AdminTabId,
       label: 'خدمة العملاء',
       description: 'مركز دعم ومراسلة العملاء',
       icon: Headphones,

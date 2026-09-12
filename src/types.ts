@@ -53,6 +53,8 @@ export interface OrderItem {
   paymentProof: string;
   paymentProofFilename?: string;
   status: OrderStatus;
+  statusVersion?: number;
+  statusChangedAt?: string;
   rejectionReason?: string;
   createdAt: string;
   updatedAt: string;

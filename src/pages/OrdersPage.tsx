@@ -6,6 +6,7 @@ import { OrderTimeline } from '../components/OrderTimeline';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { OrderItemSkeleton } from '../components/ui/Skeleton';
 import { ConfirmationModal } from '../components/ConfirmationModal';
+import { markOrderStatusSeen } from '../components/OrderStatusModal';
 import {
   Package,
   Calendar,
@@ -81,6 +82,7 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({
       setCancelling(true);
       setCancelError(null);
       await api.cancelOrder(orderToCancel.id);
+      markOrderStatusSeen(orderToCancel.id, 'cancelled', (orderToCancel.statusVersion || 1) + 1);
       setCancelSuccess(`تم إلغاء الطلب ${orderToCancel.orderNumber} بنجاح.`);
 
       // Update local state

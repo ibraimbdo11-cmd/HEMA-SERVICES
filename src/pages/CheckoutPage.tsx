@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ServiceItem, OrderItem } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
+import { markOrderStatusSeen } from '../components/OrderStatusModal';
 import {
   ArrowRight,
   Copy,
@@ -142,6 +143,9 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
         paymentProof: uploadedUrl,
         paymentProofFilename: proofFile?.name || 'payment-receipt.png',
       });
+
+      // Mark initial pending state as acknowledged so creation does not trigger redundant alert modal
+      markOrderStatusSeen(newOrder.id, 'pending_review', 1);
 
       setCreatedOrder(newOrder);
     } catch (err: any) {

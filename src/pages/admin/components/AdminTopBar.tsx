@@ -40,7 +40,7 @@ const tabTitles: Record<AdminTabId, { title: string; subtitle: string }> = {
     title: 'سجل المستخدمين',
     subtitle: 'بيانات العملاء وتواريخ التسجيل وحجم الطلبات',
   },
-  conversations: {
+  support: {
     title: 'خدمة العملاء',
     subtitle: 'مركز المراسلة الفورية والرد على العملاء ومتابعة الملفات',
   },
@@ -110,7 +110,7 @@ export const AdminTopBar: React.FC<AdminTopBarProps> = ({
         <button
           onClick={onNavigateToSupport}
           className={`hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-            activeTab === 'conversations'
+            activeTab === 'support'
               ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
               : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-white/[0.08]'
           }`}

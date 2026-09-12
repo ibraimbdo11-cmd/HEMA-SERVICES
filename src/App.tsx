@@ -14,7 +14,8 @@ import { AuthGatePage } from './pages/AuthGatePage';
 import { ChatModal } from './components/ChatModal';
 import { ServiceOrderModal } from './components/ServiceOrderModal';
 import { CustomerSupportFloatingButton } from './components/CustomerSupportFloatingButton';
-import { ServiceItem } from './types';
+import { OrderStatusModal, hasSeenOrderStatus } from './components/OrderStatusModal';
+import { ServiceItem, OrderItem } from './types';
 import { api } from './lib/api';
 
 // Code-splitting for heavy admin dashboard
@@ -53,15 +54,51 @@ function MainApp() {
     orderNumber?: string;
   }>({});
 
+  // Order Status Notification Modal State
+  const [statusModalOrder, setStatusModalOrder] = useState<OrderItem | null>(null);
+
   // Reset customer session state when user changes
   useEffect(() => {
     setSelectedOrderIdForDetails(null);
     setChatOrderContext({});
     setChatOpen(false);
     setUnreadSupportCount(0);
+    setStatusModalOrder(null);
   }, [currentUser?.uid]);
 
-  // Realtime subscription & sync for support messages unread count
+  // Check for unseen order status changes upon user session initialization
+  useEffect(() => {
+    if (!currentUser || isAdmin) return;
+
+    let isMounted = true;
+    const checkUnseenOrderStatus = async () => {
+      try {
+        const userOrders = await api.getOrders();
+        if (!isMounted) return;
+
+        // Find any order whose status has changed and has not been acknowledged in localStorage yet
+        const unseenOrder = userOrders.find(
+          (o) =>
+            o.status !== 'pending_review' &&
+            !hasSeenOrderStatus(o.id, o.status, o.statusVersion)
+        );
+
+        if (unseenOrder) {
+          setStatusModalOrder(unseenOrder);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    checkUnseenOrderStatus();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser?.uid, isAdmin]);
+
+  // Realtime subscription & sync for support messages and order status changes
   useEffect(() => {
     if (!currentUser) {
       setUnreadSupportCount(0);
@@ -81,7 +118,7 @@ function MainApp() {
 
     fetchUnreadSupport();
 
-    // Realtime SSE listener for instant notifications
+    // Realtime SSE listener for instant notifications & order status changes
     const unsub = api.subscribeChat({
       userId: currentUser.uid,
       role: 'user',
@@ -100,6 +137,15 @@ function MainApp() {
         if (!isMounted) return;
         fetchUnreadSupport();
       },
+      onOrderStatusUpdated: (data) => {
+        if (!isMounted) return;
+        if (data.order && !isAdmin) {
+          // Show status notification modal once per status change using localStorage
+          if (!hasSeenOrderStatus(data.order.id, data.order.status, data.order.statusVersion)) {
+            setStatusModalOrder(data.order);
+          }
+        }
+      },
     });
 
     const timer = setInterval(fetchUnreadSupport, 15000);
@@ -108,7 +154,7 @@ function MainApp() {
       clearInterval(timer);
       unsub();
     };
-  }, [currentUser]);
+  }, [currentUser, isAdmin]);
 
   // Fetch services from API
   const fetchServices = async () => {
@@ -381,6 +427,18 @@ function MainApp() {
         conversationId={chatOrderContext.conversationId}
         orderId={chatOrderContext.orderId}
         orderNumber={chatOrderContext.orderNumber}
+      />
+
+      {/* Order Status Notification Modal (Shown once per status change using localStorage) */}
+      <OrderStatusModal
+        isOpen={!!statusModalOrder}
+        order={statusModalOrder}
+        onClose={() => setStatusModalOrder(null)}
+        onViewOrderDetails={(orderId) => {
+          setSelectedOrderIdForDetails(orderId);
+          setCurrentView('orders');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
       />
     </div>
   );

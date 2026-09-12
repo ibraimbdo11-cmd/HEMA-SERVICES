@@ -387,7 +387,7 @@ function parseCookies(cookieHeader?: string): Record<string, string> {
 }
 
 function extractToken(req: express.Request): string | null {
-  // 1. Authorization header: "Bearer <token>"
+  // 1. Authorization header: "Bearer <token>" (primary and mandatory for all API requests)
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     return authHeader.substring(7).trim();
@@ -398,10 +398,18 @@ function extractToken(req: express.Request): string | null {
     return req.query.token.trim();
   }
 
-  // 3. Cookie header: "hema_session=<token>"
-  const cookies = parseCookies(req.headers.cookie);
-  if (cookies['hema_session']) {
-    return cookies['hema_session'];
+  // 3. Cookie header: "hema_session=<token>" ONLY allowed for media assets / download streaming or SSE
+  // Never fall back to ambient cookies for mutating or sensitive API routes to prevent cross-account leaks
+  const isMediaOrStreamRoute =
+    req.path.startsWith('/api/uploads') ||
+    req.path.startsWith('/api/chat/media') ||
+    req.path.startsWith('/api/events');
+
+  if (isMediaOrStreamRoute) {
+    const cookies = parseCookies(req.headers.cookie);
+    if (cookies['hema_session']) {
+      return cookies['hema_session'];
+    }
   }
 
   return null;
@@ -974,6 +982,7 @@ app.post('/api/auth/logout', async (req, res) => {
       closeAllUserConnections(user.uid);
     }
   }
+  res.clearCookie('hema_session', { path: '/', httpOnly: true, sameSite: 'lax' });
   res.clearCookie('hema_session', { path: '/' });
   res.json({ success: true });
 });
@@ -1156,33 +1165,36 @@ app.delete('/api/services/:id', requireAdmin, (req, res) => {
 // ORDERS ENDPOINTS (Strict Isolation & Ownership)
 // ----------------------------------------------------
 
+// Customer Orders Endpoint: strictly returns ONLY the authenticated user's orders
 app.get('/api/orders', requireAuth, (req, res) => {
   const db = readDB();
+  const authenticatedUid = req.user!.uid;
 
-  // Admin can see all orders, or filter by user if requested
-  if (req.user!.role === 'admin') {
-    const filterUserId = req.query.userId as string;
-    if (filterUserId) {
-      return res.json(db.orders.filter((o) => o.userId === filterUserId));
-    }
-    return res.json(db.orders);
-  }
-
-  // Regular customer: strictly filter by verified req.user.uid
-  // Any client-provided userId query parameter is completely ignored
-  const userOrders = db.orders.filter((o) => o.userId === req.user!.uid);
+  // Enforce server-side isolation: ignore any query params or client claims
+  const userOrders = db.orders.filter((o) => o.userId === authenticatedUid);
   res.json(userOrders);
+});
+
+// Admin Orders Endpoint: dedicated for Admin Dashboard management
+app.get('/api/admin/orders', requireAdmin, (req, res) => {
+  const db = readDB();
+  const filterUserId = req.query.userId as string;
+  if (filterUserId) {
+    return res.json(db.orders.filter((o) => o.userId === filterUserId));
+  }
+  res.json(db.orders);
 });
 
 app.get('/api/orders/:id', requireAuth, (req, res) => {
   const db = readDB();
+  const authenticatedUid = req.user!.uid;
   const order = db.orders.find((o) => o.id === req.params.id);
   if (!order) {
     return res.status(404).json({ error: 'الطلب غير موجود' });
   }
 
-  // Ownership verification
-  if (order.userId !== req.user!.uid && req.user!.role !== 'admin') {
+  // Ownership verification: regular customer can strictly only access their own order
+  if (order.userId !== authenticatedUid && req.user!.role !== 'admin') {
     return res.status(403).json({ error: 'غير مصرح بعرض هذا الطلب' });
   }
 
@@ -1191,6 +1203,11 @@ app.get('/api/orders/:id', requireAuth, (req, res) => {
 
 app.post('/api/orders', requireAuth, (req, res) => {
   const db = readDB();
+  // Server-Authoritative Identity: Completely ignore any client-provided userId, email, or role
+  const authenticatedUid = req.user!.uid;
+  const authenticatedEmail = req.user!.email || '';
+  const authenticatedName = req.user!.name || (authenticatedEmail ? authenticatedEmail.split('@')[0] : 'عميل');
+
   const { serviceId, customerRequirements, paymentProof, paymentProofFilename, paymentMethod, senderWalletNumber, userName } = req.body;
 
   if (!serviceId || !paymentProof) {
@@ -1204,14 +1221,11 @@ app.post('/api/orders', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'ملف إثبات التحويل غير موجود على الخادم، يرجى إعادة رفعه' });
   }
   const proofUploadRec = (db.uploads || []).find((u) => u.filename === proofBasename);
-  if (proofUploadRec && proofUploadRec.uploaderId !== req.user!.uid && req.user!.role !== 'admin') {
+  if (proofUploadRec && proofUploadRec.uploaderId !== authenticatedUid && req.user!.role !== 'admin') {
     return res.status(403).json({ error: 'غير مصرح باستخدام هذا الإيصال' });
   }
 
-  // Identity is derived 100% server-side from verified req.user
-  const userId = req.user!.uid;
-  const userEmail = req.user!.email || '';
-  const resolvedUserName = userName && typeof userName === 'string' && userName.trim() ? userName.trim() : req.user!.name;
+  const resolvedUserName = userName && typeof userName === 'string' && userName.trim() ? userName.trim() : authenticatedName;
 
   const service = db.services.find((s) => s.id === serviceId);
   const serviceTitle = service ? service.title : 'خدمة برمجية';
@@ -1221,13 +1235,14 @@ app.post('/api/orders', requireAuth, (req, res) => {
 
   const count = db.orders.length + 1;
   const orderNumber = `HEMA-${new Date().getFullYear()}-${String(count).padStart(4, '0')}`;
+  const now = new Date().toISOString();
 
   const newOrder = {
     id: `ord-${Date.now()}`,
     orderNumber,
-    userId,
+    userId: authenticatedUid, // Enforce strict server-derived UID
     userName: resolvedUserName,
-    userEmail,
+    userEmail: authenticatedEmail, // Enforce strict server-derived Email
     serviceId,
     serviceNameSnapshot: serviceTitle,
     serviceImageSnapshot: serviceImg,
@@ -1239,14 +1254,16 @@ app.post('/api/orders', requireAuth, (req, res) => {
     paymentProof,
     paymentProofFilename: paymentProofFilename || 'receipt.png',
     status: 'pending_review',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    statusVersion: 1,
+    statusChangedAt: now,
+    createdAt: now,
+    updatedAt: now,
   };
 
   db.orders.unshift(newOrder);
 
   // Increment user orderCount
-  const userObj = db.users.find((u) => u.id === userId);
+  const userObj = db.users.find((u) => u.id === authenticatedUid);
   if (userObj) {
     userObj.orderCount = (userObj.orderCount || 0) + 1;
   }
@@ -1268,27 +1285,26 @@ app.post('/api/orders', requireAuth, (req, res) => {
   // Customer Notification
   const customerOrderNotif = {
     id: `notif-${Date.now() + 1}`,
-    userId,
+    userId: authenticatedUid,
     type: 'order_status' as const,
     title: 'تم استلام طلبك بنجاح',
     body: `تم استلام طلبك برقم ${orderNumber} وهو قيد المراجعة حالياً من قبل الإدارة.`,
     relatedOrderId: newOrder.id,
     isRead: false,
-    createdAt: new Date().toISOString(),
+    createdAt: now,
   };
   db.notifications.unshift(customerOrderNotif);
-  sendRealtimeEvent('new_notification', { userId, notification: customerOrderNotif }, undefined, userId);
+  sendRealtimeEvent('new_notification', { userId: authenticatedUid, notification: customerOrderNotif }, undefined, authenticatedUid);
 
   // Associate order with customer's ONE canonical support conversation
-  let canonicalConv = db.conversations.find((c) => c.userId === userId);
-  const now = new Date().toISOString();
+  let canonicalConv = db.conversations.find((c) => c.userId === authenticatedUid);
 
   if (!canonicalConv) {
     canonicalConv = {
-      id: `conv-${Date.now()}-${userId.substring(0, 6)}`,
-      userId,
+      id: `conv-${Date.now()}-${authenticatedUid.substring(0, 6)}`,
+      userId: authenticatedUid,
       userName: resolvedUserName,
-      userEmail,
+      userEmail: authenticatedEmail,
       orderId: newOrder.id,
       orderNumber,
       lastMessage: `تم تسجيل الطلب برقم ${orderNumber}`,
@@ -1347,7 +1363,12 @@ app.patch('/api/orders/:id/status', requireAdmin, (req, res) => {
     return res.status(404).json({ error: 'الطلب غير موجود' });
   }
 
-  order.status = status;
+  const isStatusChanged = order.status !== status;
+  if (isStatusChanged) {
+    order.status = status;
+    order.statusVersion = (order.statusVersion || 1) + 1;
+    order.statusChangedAt = new Date().toISOString();
+  }
   if (rejectionReason !== undefined) {
     order.rejectionReason = rejectionReason;
   }
@@ -1390,6 +1411,7 @@ app.patch('/api/orders/:id/status', requireAdmin, (req, res) => {
   };
   db.notifications.unshift(orderStatusNotif);
   sendRealtimeEvent('new_notification', { userId: order.userId, notification: orderStatusNotif }, undefined, order.userId);
+  sendRealtimeEvent('order_status_updated', { userId: order.userId, order }, undefined, order.userId);
 
   writeDB(db);
   res.json(order);
@@ -1415,6 +1437,8 @@ app.post('/api/orders/:id/cancel', requireAuth, (req, res) => {
   }
 
   order.status = 'cancelled';
+  order.statusVersion = (order.statusVersion || 1) + 1;
+  order.statusChangedAt = new Date().toISOString();
   order.updatedAt = new Date().toISOString();
 
   // Admin Notification
@@ -1444,6 +1468,7 @@ app.post('/api/orders/:id/cancel', requireAuth, (req, res) => {
   };
   db.notifications.unshift(customerCancelNotif);
   sendRealtimeEvent('new_notification', { userId: order.userId, notification: customerCancelNotif }, undefined, order.userId);
+  sendRealtimeEvent('order_status_updated', { userId: order.userId, order }, undefined, order.userId);
 
   writeDB(db);
   res.json({ success: true, order });
