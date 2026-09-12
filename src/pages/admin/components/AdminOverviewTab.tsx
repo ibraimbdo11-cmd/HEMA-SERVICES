@@ -11,7 +11,6 @@ import {
   ExternalLink,
   Eye,
   Plus,
-  Headphones,
 } from 'lucide-react';
 import { DashboardOverviewKPI, OrderItem } from '../../../types';
 import { StatusBadge } from '../../../components/ui/StatusBadge';
@@ -127,13 +126,6 @@ export const AdminOverviewTab: React.FC<AdminOverviewTabProps> = ({
           >
             <Plus className="w-4 h-4" />
             <span>إضافة خدمة جديدة</span>
-          </button>
-          <button
-            onClick={() => onNavigateToTab('support')}
-            className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 border border-white/[0.08] text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-          >
-            <Headphones className="w-3.5 h-3.5 text-emerald-400" />
-            <span>خدمة العملاء</span>
           </button>
         </div>
       </div>

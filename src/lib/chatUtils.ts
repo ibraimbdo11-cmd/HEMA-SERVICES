@@ -85,6 +85,32 @@ export function formatFileSize(bytes?: number): string {
 }
 
 /**
+ * Format timestamp into friendly Arabic relative or clock time
+ */
+export function formatArabicRelativeTime(dateStr?: string): string {
+  if (!dateStr) return '';
+  try {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffSecs = Math.floor(diffMs / 1000);
+    const diffMins = Math.floor(diffSecs / 60);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffSecs < 60) return 'الآن';
+    if (diffMins < 60) return `منذ ${diffMins} د`;
+    if (diffHours < 24) return `منذ ${diffHours} س`;
+    if (diffDays === 1) return 'أمس';
+    if (diffDays < 7) return `منذ ${diffDays} أيام`;
+
+    return date.toLocaleDateString('ar-EG', { month: 'short', day: 'numeric' });
+  } catch {
+    return '';
+  }
+}
+
+/**
  * Extract lower-case extension with leading dot (e.g. '.pdf')
  */
 export function getFileExtension(filename?: string): string {

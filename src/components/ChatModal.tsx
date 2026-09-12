@@ -5,6 +5,7 @@ import { Conversation, MessageItem } from '../types';
 import { Logo } from './Logo';
 import { AudioMessagePlayer } from './ui/AudioMessagePlayer';
 import { ConfirmationModal } from './ConfirmationModal';
+import { AdminConversationsList } from './chat/AdminConversationsList';
 import {
   X,
   Send,
@@ -31,6 +32,7 @@ import {
   Eye,
   FileArchive,
   FileSpreadsheet,
+  ArrowRight,
 } from 'lucide-react';
 import {
   mergeAndSortMessages,
@@ -45,6 +47,7 @@ import {
 interface ChatModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onReturnToAdmin?: () => void;
   conversationId?: string;
   orderId?: string;
   orderNumber?: string;
@@ -53,6 +56,7 @@ interface ChatModalProps {
 export const ChatModal: React.FC<ChatModalProps> = ({
   isOpen,
   onClose,
+  onReturnToAdmin,
   conversationId,
   orderId,
   orderNumber,
@@ -66,6 +70,19 @@ export const ChatModal: React.FC<ChatModalProps> = ({
   const [uploadStatusText, setUploadStatusText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const markReadTimerRef = useRef<any>(null);
+
+  // Admin-specific Management State
+  const [adminConversations, setAdminConversations] = useState<Conversation[]>([]);
+  const [adminLoadingConvs, setAdminLoadingConvs] = useState(false);
+  const [adminSearchQuery, setAdminSearchQuery] = useState('');
+  const [adminFilterUnread, setAdminFilterUnread] = useState(false);
+  const [isCustomerTyping, setIsCustomerTyping] = useState(false);
+  const customerTypingTimerRef = useRef<any>(null);
+  const [customerPresence, setCustomerPresence] = useState<{ isOnline: boolean; statusText: string }>({
+    isOnline: false,
+    statusText: 'غير متصل',
+  });
+  const currentCustomerUidRef = useRef<string | null>(null);
 
   // Pagination & Smart Scroll State
   const [hasMore, setHasMore] = useState(false);
@@ -248,6 +265,69 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     }
   };
 
+  // Load messages and setup active state for a conversation
+  const loadMessagesForConversation = async (conv: Conversation) => {
+    try {
+      setLoading(true);
+      setError(null);
+      activeConvIdRef.current = conv.id;
+      currentCustomerUidRef.current = conv.userId || null;
+      setConversation(conv);
+      setMessages([]);
+      setHasMore(false);
+
+      const res = await api.getMessagesWithMeta(conv.id, { limit: 25 });
+      setMessages(res.messages);
+      setHasMore(res.hasMore);
+
+      requestAnimationFrame(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+        }
+      });
+
+      if (isAdmin) {
+        scheduleMarkAsRead(conv.id, 400);
+        setAdminConversations((prev) =>
+          prev.map((c) => (c.id === conv.id ? { ...c, unreadByAdmin: 0 } : c))
+        );
+      } else {
+        const hasUnread = res.messages.some((m) => m.senderRole === 'admin' && !m.readAt);
+        if (hasUnread && isOpen && !document.hidden) {
+          scheduleMarkAsRead(conv.id, 800);
+        }
+      }
+    } catch (err: any) {
+      setError(err.message || 'فشل في تحميل رسائل المحادثة');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSelectAdminConversation = (conv: Conversation) => {
+    if (conversation?.id === conv.id) return;
+    setReplyingToMessage(null);
+    setEditingMessage(null);
+    setStagedFile(null);
+    handleDiscardAudioPreview();
+    loadMessagesForConversation(conv);
+  };
+
+  const refreshAdminConversations = async () => {
+    if (!isAdmin) return;
+    try {
+      setAdminLoadingConvs(true);
+      const list = await api.getConversations();
+      setAdminConversations(list);
+    } catch (err) {
+      console.error('Failed to refresh admin conversations:', err);
+    } finally {
+      setAdminLoadingConvs(false);
+    }
+  };
+
+  const totalAdminUnread = adminConversations.reduce((acc, c) => acc + (c.unreadByAdmin || 0), 0);
+
   // Initialize conversation and setup Realtime SSE
   useEffect(() => {
     if (!isOpen || !currentUser) return;
@@ -261,11 +341,171 @@ export const ChatModal: React.FC<ChatModalProps> = ({
         setLoading(true);
         setError(null);
 
-        let conv: Conversation;
-        if (conversationId) {
-          try {
-            conv = await api.getConversation(conversationId);
-          } catch {
+        if (isAdmin) {
+          // Admin Mode: Load all customer conversations
+          setAdminLoadingConvs(true);
+          const list = await api.getConversations();
+          if (!isMounted) return;
+          setAdminConversations(list);
+          setAdminLoadingConvs(false);
+
+          let targetConv: Conversation | undefined;
+          if (conversationId) {
+            targetConv = list.find((c) => c.id === conversationId);
+            if (!targetConv) {
+              try {
+                targetConv = await api.getConversation(conversationId);
+              } catch {}
+            }
+          } else if (activeOrderContext.orderId || orderId) {
+            const targetOrderId = activeOrderContext.orderId || orderId;
+            const targetOrderNumber = activeOrderContext.orderNumber || orderNumber;
+            targetConv = list.find(
+              (c) =>
+                c.orderId === targetOrderId ||
+                (targetOrderNumber && c.orderNumber === targetOrderNumber)
+            );
+          } else if (window.innerWidth >= 768 && list.length > 0) {
+            // On desktop, default select the first conversation for immediate responsiveness
+            targetConv = list[0];
+          }
+
+          if (targetConv) {
+            await loadMessagesForConversation(targetConv);
+          } else {
+            setConversation(null);
+          }
+
+          // Admin Realtime SSE Subscription across all conversations
+          unsubSSE = api.subscribeChat({
+            role: 'admin',
+            onMessage: (newMsg, eventConvId) => {
+              if (!isMounted) return;
+              const targetConvId = eventConvId || newMsg.conversationId;
+
+              // If message belongs to currently active conversation
+              if (activeConvIdRef.current && targetConvId === activeConvIdRef.current) {
+                setMessages((prev) => mergeAndSortMessages(prev, [newMsg]));
+
+                const container = scrollContainerRef.current;
+                const nearBottom = container ? isNearBottom(container, 120) : true;
+                if (nearBottom) {
+                  requestAnimationFrame(() => {
+                    if (container) {
+                      container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+                    }
+                  });
+                  if (isOpen && !document.hidden) {
+                    scheduleMarkAsRead(targetConvId, 1000);
+                  }
+                } else {
+                  setHasNewMessagesBelow(true);
+                }
+              }
+
+              // Update admin conversations list
+              setAdminConversations((prev) => {
+                const exists = prev.some((c) => c.id === targetConvId);
+                if (exists) {
+                  return prev.map((c) => {
+                    if (c.id === targetConvId) {
+                      const isActive = activeConvIdRef.current === targetConvId;
+                      return {
+                        ...c,
+                        lastMessageText:
+                          newMsg.text ||
+                          (newMsg.type === 'audio'
+                            ? 'تسجيل صوتي'
+                            : newMsg.type === 'image'
+                            ? 'صورة'
+                            : 'ملف مرفق'),
+                        lastMessageAt: newMsg.createdAt,
+                        unreadByAdmin: isActive
+                          ? 0
+                          : (c.unreadByAdmin || 0) + (newMsg.senderRole === 'user' ? 1 : 0),
+                      };
+                    }
+                    return c;
+                  });
+                } else {
+                  refreshAdminConversations();
+                  return prev;
+                }
+              });
+            },
+            onMessageUpdated: (updatedMsg, eventConvId) => {
+              if (!isMounted) return;
+              const targetConvId = eventConvId || updatedMsg.conversationId;
+              if (targetConvId && targetConvId === activeConvIdRef.current) {
+                setMessages((prev) =>
+                  prev.map((m) => (m.id === updatedMsg.id ? updatedMsg : m))
+                );
+              }
+            },
+            onMessageDeleted: (delData) => {
+              if (!isMounted) return;
+              if (delData.conversationId && delData.conversationId === activeConvIdRef.current) {
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === delData.messageId
+                      ? (delData.message || { ...m, isDeleted: true, text: 'تم حذف هذه الرسالة' })
+                      : m
+                  )
+                );
+              }
+            },
+            onMessagesRead: (readData) => {
+              if (!isMounted) return;
+              if (readData.conversationId && readData.conversationId === activeConvIdRef.current) {
+                setMessages((prev) =>
+                  prev.map((m) => {
+                    if (m.senderRole === 'admin' && !m.readAt) {
+                      return { ...m, readAt: readData.readAt };
+                    }
+                    return m;
+                  })
+                );
+              }
+            },
+            onTyping: (data) => {
+              if (!isMounted) return;
+              if (activeConvIdRef.current && data.conversationId === activeConvIdRef.current) {
+                if (data.role !== 'admin') {
+                  setIsCustomerTyping(data.isTyping);
+                  if (customerTypingTimerRef.current) clearTimeout(customerTypingTimerRef.current);
+                  if (data.isTyping) {
+                    customerTypingTimerRef.current = setTimeout(() => {
+                      if (isMounted) setIsCustomerTyping(false);
+                    }, 3500);
+                  }
+                }
+              }
+            },
+            onPresence: (pres) => {
+              if (!isMounted) return;
+              if (currentCustomerUidRef.current && pres.userId === currentCustomerUidRef.current) {
+                setCustomerPresence({
+                  isOnline: pres.isOnline,
+                  statusText: pres.isOnline ? 'العميل متصل الآن' : 'العميل غير متصل حالياً',
+                });
+              }
+            },
+          });
+        } else {
+          // Regular Customer Mode: Canonical private support chat
+          let conv: Conversation;
+          if (conversationId) {
+            try {
+              conv = await api.getConversation(conversationId);
+            } catch {
+              conv = await api.findOrCreateConversation({
+                userId: currentUser.uid,
+                userName: profile?.name || currentUser.displayName || 'العميل',
+                userEmail: currentUser.email || '',
+                orderId: activeOrderContext.orderId || orderId,
+              });
+            }
+          } else {
             conv = await api.findOrCreateConversation({
               userId: currentUser.uid,
               userName: profile?.name || currentUser.displayName || 'العميل',
@@ -273,135 +513,111 @@ export const ChatModal: React.FC<ChatModalProps> = ({
               orderId: activeOrderContext.orderId || orderId,
             });
           }
-        } else {
-          conv = await api.findOrCreateConversation({
-            userId: currentUser.uid,
-            userName: profile?.name || currentUser.displayName || 'العميل',
-            userEmail: currentUser.email || '',
-            orderId: activeOrderContext.orderId || orderId,
-          });
-        }
 
-        if (!isMounted) return;
-        activeConvIdRef.current = conv.id;
-        setConversation(conv);
+          if (!isMounted) return;
+          await loadMessagesForConversation(conv);
 
-        // Fetch existing messages with pagination
-        const res = await api.getMessagesWithMeta(conv.id, { limit: 25 });
-        if (isMounted) {
-          setMessages(res.messages);
-          setHasMore(res.hasMore);
-          // Scroll to bottom on initial conversation open
-          requestAnimationFrame(() => {
-            if (scrollContainerRef.current) {
-              scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
-            }
-          });
-          const hasUnread = res.messages.some((m) => m.senderRole === 'admin' && !m.readAt);
-          if (hasUnread && isOpen && !document.hidden) {
-            scheduleMarkAsRead(conv.id, 800);
-          }
-        }
+          // Customer Presence check
+          api.getAdminPresenceStatus().then((st) => {
+            if (isMounted) setAdminStatus(st);
+          }).catch(() => {});
 
-        // Fetch initial admin status
-        api.getAdminPresenceStatus().then((st) => {
-          if (isMounted) setAdminStatus(st);
-        }).catch(() => {});
+          // Customer Realtime SSE Subscription
+          unsubSSE = api.subscribeChat({
+            conversationId: conv.id,
+            role: 'user',
+            onMessage: (newMsg, eventConvId) => {
+              if (!isMounted) return;
+              const targetConvId = eventConvId || newMsg.conversationId;
+              if (targetConvId && targetConvId !== conv.id) return;
 
-        // Send initial heartbeat
-        api.sendPresenceHeartbeat(currentUser.uid, 'user').catch(() => {});
+              setMessages((prev) => mergeAndSortMessages(prev, [newMsg]));
 
-        // Realtime SSE Subscription
-        unsubSSE = api.subscribeChat({
-          conversationId: conv.id,
-          onMessage: (newMsg, eventConvId) => {
-            if (!isMounted) return;
-            const targetConvId = eventConvId || newMsg.conversationId;
-            // Strict isolation check: ignore events not belonging to this canonical conversation
-            if (targetConvId && targetConvId !== conv.id) return;
+              const container = scrollContainerRef.current;
+              const nearBottom = container ? isNearBottom(container, 120) : true;
 
-            setMessages((prev) => mergeAndSortMessages(prev, [newMsg]));
-
-            const container = scrollContainerRef.current;
-            const nearBottom = container ? isNearBottom(container, 120) : true;
-
-            if (nearBottom) {
-              requestAnimationFrame(() => {
-                if (container) {
-                  container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+              if (nearBottom) {
+                requestAnimationFrame(() => {
+                  if (container) {
+                    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+                  }
+                });
+                if (newMsg.senderRole === 'admin') {
+                  if (isOpen && !document.hidden) {
+                    scheduleMarkAsRead(conv.id, 1200);
+                  }
                 }
-              });
-              if (newMsg.senderRole === 'admin') {
-                if (isOpen && !document.hidden) {
-                  scheduleMarkAsRead(conv.id, 1200);
+              } else {
+                setHasNewMessagesBelow(true);
+              }
+            },
+            onMessageUpdated: (updatedMsg, eventConvId) => {
+              if (!isMounted) return;
+              const targetConvId = eventConvId || updatedMsg.conversationId;
+              if (targetConvId && targetConvId !== conv.id) return;
+
+              setMessages((prev) =>
+                prev.map((m) => (m.id === updatedMsg.id ? updatedMsg : m))
+              );
+            },
+            onMessageDeleted: (delData) => {
+              if (!isMounted) return;
+              if (delData.conversationId && delData.conversationId !== conv.id) return;
+
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === delData.messageId
+                    ? (delData.message || { ...m, isDeleted: true, text: 'تم حذف هذه الرسالة' })
+                    : m
+                )
+              );
+            },
+            onMessagesRead: (readData) => {
+              if (!isMounted) return;
+              if (readData.conversationId && readData.conversationId !== conv.id) return;
+
+              setMessages((prev) =>
+                prev.map((m) => {
+                  if (m.senderId === currentUser.uid && !m.readAt) {
+                    return { ...m, readAt: readData.readAt };
+                  }
+                  return m;
+                })
+              );
+            },
+            onTyping: (data) => {
+              if (!isMounted) return;
+              if (data.conversationId !== conv.id) return;
+              if (data.userId === currentUser.uid) return;
+
+              if (data.role === 'admin') {
+                setIsAdminTyping(data.isTyping);
+                if (adminTypingTimerRef.current) clearTimeout(adminTypingTimerRef.current);
+                if (data.isTyping) {
+                  adminTypingTimerRef.current = setTimeout(() => {
+                    if (isMounted) setIsAdminTyping(false);
+                  }, 3500);
                 }
               }
-            } else {
-              setHasNewMessagesBelow(true);
-            }
-          },
-          onMessageUpdated: (updatedMsg, eventConvId) => {
-            if (!isMounted) return;
-            const targetConvId = eventConvId || updatedMsg.conversationId;
-            if (targetConvId && targetConvId !== conv.id) return;
-
-            setMessages((prev) =>
-              prev.map((m) => (m.id === updatedMsg.id ? updatedMsg : m))
-            );
-          },
-          onMessageDeleted: (delData) => {
-            if (!isMounted) return;
-            if (delData.conversationId && delData.conversationId !== conv.id) return;
-
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === delData.messageId
-                  ? (delData.message || { ...m, isDeleted: true, text: 'تم حذف هذه الرسالة' })
-                  : m
-              )
-            );
-          },
-          onMessagesRead: (readData) => {
-            if (!isMounted) return;
-            if (readData.conversationId && readData.conversationId !== conv.id) return;
-
-            setMessages((prev) =>
-              prev.map((m) => {
-                if (m.senderId === currentUser.uid && !m.readAt) {
-                  return { ...m, readAt: readData.readAt };
-                }
-                return m;
-              })
-            );
-          },
-          onTyping: (data) => {
-            if (!isMounted) return;
-            // Only react to typing in THIS conversation from support
-            if (data.conversationId !== conv.id) return;
-            if (data.userId === currentUser.uid) return;
-
-            setIsAdminTyping(data.isTyping);
-            if (adminTypingTimerRef.current) clearTimeout(adminTypingTimerRef.current);
-            if (data.isTyping) {
-              adminTypingTimerRef.current = setTimeout(() => {
-                if (isMounted) setIsAdminTyping(false);
-              }, 3500);
-            }
-          },
-          onPresence: (pres) => {
-            if (!isMounted) return;
-            if (pres.role === 'admin') {
-              setAdminStatus({
-                isOnline: pres.isOnline,
-                statusText: pres.isOnline ? 'فريق الدعم متصل الآن' : 'خدمة العملاء متاحة للرد',
-              });
-            }
-          },
-        });
+            },
+            onPresence: (pres) => {
+              if (!isMounted) return;
+              if (pres.role === 'admin') {
+                setAdminStatus({
+                  isOnline: pres.isOnline,
+                  statusText: pres.isOnline ? 'فريق الدعم متصل الآن' : 'خدمة العملاء متاحة للرد',
+                });
+              }
+            },
+          });
+        }
       } catch (err: any) {
         if (isMounted) setError(err.message || 'حدث خطأ أثناء تحميل المحادثة');
       } finally {
-        if (isMounted) setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+          setAdminLoadingConvs(false);
+        }
       }
     };
 
@@ -410,10 +626,12 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     // Heartbeat every 20s while open
     heartbeatTimer = setInterval(() => {
       if (currentUser) {
-        api.sendPresenceHeartbeat(currentUser.uid, 'user').catch(() => {});
-        api.getAdminPresenceStatus().then((st) => {
-          if (isMounted) setAdminStatus(st);
-        }).catch(() => {});
+        api.sendPresenceHeartbeat(currentUser.uid, isAdmin ? 'admin' : 'user').catch(() => {});
+        if (!isAdmin) {
+          api.getAdminPresenceStatus().then((st) => {
+            if (isMounted) setAdminStatus(st);
+          }).catch(() => {});
+        }
       }
     }, 20000);
 
@@ -423,9 +641,10 @@ export const ChatModal: React.FC<ChatModalProps> = ({
       if (heartbeatTimer) clearInterval(heartbeatTimer);
       if (adminTypingTimerRef.current) clearTimeout(adminTypingTimerRef.current);
       if (userTypingTimerRef.current) clearTimeout(userTypingTimerRef.current);
+      if (customerTypingTimerRef.current) clearTimeout(customerTypingTimerRef.current);
       if (markReadTimerRef.current) clearTimeout(markReadTimerRef.current);
     };
-  }, [isOpen, currentUser, conversationId, orderId]);
+  }, [isOpen, currentUser, isAdmin, conversationId, orderId]);
 
   // Handle document visibility change to mark unread messages read only when user actually views
   useEffect(() => {
@@ -466,14 +685,22 @@ export const ChatModal: React.FC<ChatModalProps> = ({
       // Throttle typing event to send at most once every 2.5s
       if (now - lastTypingSentRef.current > 2500) {
         lastTypingSentRef.current = now;
-        api.sendTyping(conversation.id, true).catch(() => {});
+        api.sendTyping(conversation.id, true, {
+          userId: currentUser.uid,
+          userName: isAdmin ? 'إدارة HEMA SERVICES' : (profile?.name || currentUser.displayName || 'العميل'),
+          role: isAdmin ? 'admin' : 'user',
+        }).catch(() => {});
       }
 
       if (userTypingTimerRef.current) clearTimeout(userTypingTimerRef.current);
       userTypingTimerRef.current = setTimeout(() => {
         if (conversation && currentUser) {
           lastTypingSentRef.current = 0;
-          api.sendTyping(conversation.id, false).catch(() => {});
+          api.sendTyping(conversation.id, false, {
+            userId: currentUser.uid,
+            userName: isAdmin ? 'إدارة HEMA SERVICES' : (profile?.name || currentUser.displayName || 'العميل'),
+            role: isAdmin ? 'admin' : 'user',
+          }).catch(() => {});
         }
       }, 2500);
     }
@@ -568,8 +795,8 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     lastTypingSentRef.current = 0;
     api.sendTyping(conversation.id, false, {
       userId: currentUser.uid,
-      userName: profile?.name || currentUser.displayName || 'العميل',
-      role: 'user',
+      userName: isAdmin ? 'إدارة HEMA SERVICES' : (profile?.name || currentUser.displayName || 'العميل'),
+      role: isAdmin ? 'admin' : 'user',
     }).catch(() => {});
 
     try {
@@ -594,7 +821,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
       setUploadStatusText('جاري إرسال الرسالة...');
       const msg = await api.sendMessage(conversation.id, {
         senderId: currentUser.uid,
-        senderName: profile?.name || currentUser.displayName || 'العميل',
+        senderName: isAdmin ? 'إدارة HEMA SERVICES' : (profile?.name || currentUser.displayName || 'العميل'),
         senderRole: isAdmin ? 'admin' : 'user',
         type: fileToUpload ? (isImage ? 'image' : 'file') : 'text',
         text: textToSend || undefined,
@@ -603,8 +830,8 @@ export const ChatModal: React.FC<ChatModalProps> = ({
         fileSize,
         isImage,
         replyTo: replyRef,
-        orderId: activeOrderContext.orderId,
-        orderNumber: activeOrderContext.orderNumber,
+        orderId: conversation.orderId || activeOrderContext.orderId,
+        orderNumber: conversation.orderNumber || activeOrderContext.orderNumber,
       });
 
       // Clear form only on successful delivery
@@ -613,6 +840,20 @@ export const ChatModal: React.FC<ChatModalProps> = ({
       setReplyingToMessage(null);
 
       setMessages((prev) => mergeAndSortMessages(prev, [msg]));
+
+      if (isAdmin) {
+        setAdminConversations((prev) =>
+          prev.map((c) =>
+            c.id === conversation.id
+              ? {
+                  ...c,
+                  lastMessageText: textToSend || (isImage ? 'صورة' : 'ملف مرفق'),
+                  lastMessageAt: msg.createdAt,
+                }
+              : c
+          )
+        );
+      }
 
       // Scroll to bottom on user's own sent message
       requestAnimationFrame(() => {
@@ -781,17 +1022,32 @@ export const ChatModal: React.FC<ChatModalProps> = ({
       );
       const msg = await api.sendMessage(conversation.id, {
         senderId: currentUser.uid,
-        senderName: profile?.name || currentUser.displayName || 'العميل',
+        senderName: isAdmin ? 'إدارة HEMA SERVICES' : (profile?.name || currentUser.displayName || 'العميل'),
         senderRole: isAdmin ? 'admin' : 'user',
         type: 'audio',
         audioUrl: uploadRes.url,
         audioDuration: recordedAudioPreview.duration,
         replyTo: replyRef,
-        orderId: activeOrderContext.orderId,
-        orderNumber: activeOrderContext.orderNumber,
+        orderId: conversation.orderId || activeOrderContext.orderId,
+        orderNumber: conversation.orderNumber || activeOrderContext.orderNumber,
       });
       setMessages((prev) => mergeAndSortMessages(prev, [msg]));
       handleDiscardAudioPreview();
+
+      if (isAdmin) {
+        setAdminConversations((prev) =>
+          prev.map((c) =>
+            c.id === conversation.id
+              ? {
+                  ...c,
+                  lastMessageText: 'تسجيل صوتي',
+                  lastMessageAt: msg.createdAt,
+                }
+              : c
+          )
+        );
+      }
+
       requestAnimationFrame(() => {
         scrollToBottom();
       });
@@ -803,117 +1059,282 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     }
   };
 
+  const handleExitToDashboard = () => {
+    if (onReturnToAdmin) {
+      onReturnToAdmin();
+    } else {
+      onClose();
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
     <div
       id="customer-support-chat-modal"
-      className="fixed inset-0 z-50 flex justify-start bg-black/70 backdrop-blur-sm animate-in fade-in duration-200"
+      className={
+        isAdmin
+          ? "fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200 p-0 sm:p-3 md:p-6"
+          : "fixed inset-0 z-50 flex justify-start bg-black/70 backdrop-blur-sm animate-in fade-in duration-200"
+      }
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) {
+          if (isAdmin) {
+            handleExitToDashboard();
+          } else {
+            onClose();
+          }
+        }
       }}
     >
-      {/* Mobile: Full screen. Computer/Desktop: Anchored drawer with responsive max-width */}
+      {/* Mobile: Full screen. Computer/Desktop: Anchored drawer or centered admin cockpit */}
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className="relative w-full sm:max-w-lg md:max-w-xl lg:max-w-2xl h-full bg-[#090d16] border-l md:border-r-0 border-white/[0.08] shadow-2xl flex flex-col overflow-hidden text-right"
+        className={
+          isAdmin
+            ? "relative w-full max-w-6xl h-full sm:h-[90vh] bg-[#090d16] border border-white/[0.08] sm:rounded-2xl shadow-2xl flex overflow-hidden text-right"
+            : "relative w-full sm:max-w-lg md:max-w-xl lg:max-w-2xl h-full bg-[#090d16] border-l md:border-r-0 border-white/[0.08] shadow-2xl flex flex-col overflow-hidden text-right"
+        }
       >
-        {/* Desktop Drag & Drop Visual Overlay */}
-        {isDraggingFile && (
-          <div className="absolute inset-0 z-50 bg-[#090d16]/95 border-2 border-dashed border-emerald-500 flex flex-col items-center justify-center gap-3 backdrop-blur-sm pointer-events-none animate-in fade-in">
-            <div className="w-16 h-16 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-lg shadow-emerald-500/10">
-              <Upload className="w-8 h-8 animate-bounce" />
-            </div>
-            <p className="text-sm font-bold text-slate-100 font-cairo">أفلت الملف هنا للمعاينة قبل الإرسال</p>
-            <p className="text-xs text-slate-400 font-cairo">يدعم الصور والمستندات بحد أقصى 15 ميجابايت</p>
+        {/* If Admin: Conversations List Panel (Right side in RTL) */}
+        {isAdmin && (
+          <div
+            className={`w-full md:w-80 lg:w-96 shrink-0 h-full ${
+              conversation ? 'hidden md:block' : 'block'
+            }`}
+          >
+            <AdminConversationsList
+              conversations={adminConversations}
+              selectedConversationId={conversation?.id || null}
+              onSelectConversation={handleSelectAdminConversation}
+              loading={adminLoadingConvs}
+              onRefresh={refreshAdminConversations}
+              searchQuery={adminSearchQuery}
+              onSearchChange={setAdminSearchQuery}
+              filterUnreadOnly={adminFilterUnread}
+              onToggleFilterUnread={() => setAdminFilterUnread((prev) => !prev)}
+              totalUnreadCount={totalAdminUnread}
+              onExitToDashboard={handleExitToDashboard}
+            />
           </div>
         )}
 
-        {/* Header - Site logo & live presence indicator & close button */}
-        <div className="px-4 py-3 bg-[#0d131f] border-b border-white/[0.07] flex items-center justify-between shrink-0 select-none">
-          {/* Logo with Presence */}
-          <div className="flex items-center gap-3 min-w-0">
-            <Logo iconPosition="left" />
-            <div className="h-4 w-px bg-white/[0.1] hidden sm:block shrink-0" />
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900/90 border border-white/[0.08] text-[11px] text-slate-300">
-              <span
-                className={`w-2 h-2 rounded-full shrink-0 ${
-                  adminStatus.isOnline
-                    ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)] animate-pulse'
-                    : 'bg-slate-500'
-                }`}
-              />
-              <span className="font-cairo text-[11px] font-medium truncate max-w-[120px] sm:max-w-none">
-                {adminStatus.statusText}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            {/* Active order context badge in header */}
-            {activeOrderContext.orderNumber && (
-              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-xs font-mono">
-                <Package className="w-3.5 h-3.5 text-emerald-400" />
-                <span>طلب #{activeOrderContext.orderNumber}</span>
+        {/* Chat Window Panel */}
+        <div
+          className={`flex-1 flex flex-col h-full overflow-hidden ${
+            isAdmin && !conversation ? 'hidden md:flex' : 'flex'
+          }`}
+        >
+          {isAdmin && !conversation ? (
+            <div className="flex-1 flex flex-col h-full bg-[#090d16] select-none">
+              {/* Header with Exit X button */}
+              <div className="px-4 py-3 bg-[#0d131f] border-b border-white/[0.07] flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <span className="text-xs font-bold text-slate-200 font-cairo">خدمة العملاء والدعم الفني</span>
+                </div>
                 <button
                   type="button"
-                  onClick={() => setActiveOrderContext({})}
-                  className="text-slate-400 hover:text-white mr-1 p-0.5 rounded hover:bg-white/[0.06] transition-colors cursor-pointer"
-                  title="إلغاء تحديد الطلب والتحدث بشكل عام"
+                  onClick={handleExitToDashboard}
+                  id="admin-chat-empty-exit-btn"
+                  className="w-8 h-8 rounded-xl border border-white/[0.08] bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-white transition-all active:scale-95 flex items-center justify-center cursor-pointer shadow-sm"
+                  title="إغلاق"
+                  aria-label="إغلاق"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
-            )}
 
-            {/* Close button */}
-            <button
-              onClick={onClose}
-              id="close-chat-modal-btn"
-              className="w-9 h-9 rounded-xl border border-white/[0.08] bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-white transition-all active:scale-95 flex items-center justify-center cursor-pointer shadow-sm"
-              title="إغلاق المحادثة"
-              aria-label="إغلاق المحادثة"
-            >
-              <X className="w-4.5 h-4.5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Active Order Context Sub-Banner */}
-        {activeOrderContext.orderNumber && (
-          <div className="px-4 py-1.5 bg-emerald-950/40 border-b border-emerald-500/20 flex items-center justify-between text-xs text-emerald-300 shrink-0">
-            <div className="flex items-center gap-1.5 font-mono text-[11px] sm:text-xs">
-              <Package className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-              <span>سياق المحادثة الحالي: طلب #{activeOrderContext.orderNumber}</span>
+              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-400 mb-4 shadow-lg shadow-emerald-500/5">
+                  <Headphones className="w-8 h-8" />
+                </div>
+                <h3 className="text-base font-bold text-slate-100 font-cairo mb-2">
+                  خدمة العملاء - إدارة المحادثات
+                </h3>
+                <p className="text-xs text-slate-400 max-w-sm leading-relaxed font-cairo mb-4">
+                  اختر محادثة من القائمة للرد على استفسارات العميل ومتابعة طلبه بشكل فوري.
+                </p>
+                <div className="flex items-center gap-2 text-xs text-slate-500 font-mono">
+                  <span>إجمالي المحادثات: {adminConversations.length}</span>
+                  <span>•</span>
+                  <span className={totalAdminUnread > 0 ? 'text-emerald-400 font-bold' : ''}>
+                    غير مقروءة: {totalAdminUnread}
+                  </span>
+                </div>
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setActiveOrderContext({})}
-              className="text-[11px] text-slate-400 hover:text-white underline cursor-pointer"
-              title="إزالة ربط الطلب بالتحدث بشكل عام"
-            >
-              متابعة كدعم عام
-            </button>
-          </div>
-        )}
+          ) : (
+            <>
+              {/* Desktop Drag & Drop Visual Overlay */}
+              {isDraggingFile && (
+                <div className="absolute inset-0 z-50 bg-[#090d16]/95 border-2 border-dashed border-emerald-500 flex flex-col items-center justify-center gap-3 backdrop-blur-sm pointer-events-none animate-in fade-in">
+                  <div className="w-16 h-16 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-lg shadow-emerald-500/10">
+                    <Upload className="w-8 h-8 animate-bounce" />
+                  </div>
+                  <p className="text-sm font-bold text-slate-100 font-cairo">أفلت الملف هنا للمعاينة قبل الإرسال</p>
+                  <p className="text-xs text-slate-400 font-cairo">يدعم الصور والمستندات بحد أقصى 15 ميجابايت</p>
+                </div>
+              )}
 
-        {/* Error Alert */}
-        {error && (
-          <div className="p-3 bg-red-950/40 border-b border-red-500/30 text-red-300 text-xs flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-            <button
-              onClick={() => setError(null)}
-              className="text-slate-400 hover:text-white"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
+              {/* Header: Admin Header vs Customer Header */}
+              {isAdmin && conversation ? (
+                <div className="px-4 py-3 bg-[#0d131f] border-b border-white/[0.07] flex items-center justify-between shrink-0 select-none">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {/* Mobile Back Button */}
+                    <button
+                      type="button"
+                      onClick={() => setConversation(null)}
+                      className="md:hidden flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 px-2 py-1.5 rounded-lg hover:bg-white/[0.06] transition-colors font-cairo cursor-pointer"
+                      title="العودة لقائمة المحادثات"
+                    >
+                      <ArrowRight className="w-4 h-4" />
+                      <span className="text-xs font-bold">المحادثات</span>
+                    </button>
+
+                    {/* Customer Avatar */}
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500/20 to-slate-900 text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-bold text-sm shrink-0">
+                      {(conversation.userName || 'U').trim()[0].toUpperCase()}
+                    </div>
+
+                    <div className="min-w-0 text-right">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-xs sm:text-sm font-bold text-slate-100 font-cairo truncate">
+                          {conversation.userName || 'العميل'}
+                        </h4>
+                        {conversation.orderNumber && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/25 text-emerald-300 text-[10px] font-mono">
+                            <Package className="w-2.5 h-2.5" />
+                            <span>#{conversation.orderNumber}</span>
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-[11px] text-slate-400 truncate">
+                        <span className="flex items-center gap-1">
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              customerPresence.isOnline
+                                ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]'
+                                : 'bg-slate-500'
+                            }`}
+                          />
+                          <span className="font-cairo text-[10.5px]">
+                            {customerPresence.isOnline ? 'متصل الآن' : 'غير متصل'}
+                          </span>
+                        </span>
+                        {conversation.userEmail && (
+                          <span className="hidden sm:inline text-slate-500 font-mono text-[10.5px]">
+                            • {conversation.userEmail}
+                          </span>
+                        )}
+                        {isCustomerTyping && (
+                          <span className="text-emerald-400 font-cairo animate-pulse font-medium text-[11px]">
+                            • يكتب الآن...
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={handleExitToDashboard}
+                      id="close-chat-modal-btn"
+                      className="w-9 h-9 rounded-xl border border-white/[0.08] bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-white transition-all active:scale-95 flex items-center justify-center cursor-pointer shadow-sm"
+                      title="إغلاق المحادثة"
+                      aria-label="إغلاق المحادثة"
+                    >
+                      <X className="w-4.5 h-4.5" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Customer Header */
+                <div className="px-4 py-3 bg-[#0d131f] border-b border-white/[0.07] flex items-center justify-between shrink-0 select-none">
+                  {/* Logo with Presence */}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Logo iconPosition="left" />
+                    <div className="h-4 w-px bg-white/[0.1] hidden sm:block shrink-0" />
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900/90 border border-white/[0.08] text-[11px] text-slate-300">
+                      <span
+                        className={`w-2 h-2 rounded-full shrink-0 ${
+                          adminStatus.isOnline
+                            ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)] animate-pulse'
+                            : 'bg-slate-500'
+                        }`}
+                      />
+                      <span className="font-cairo text-[11px] font-medium truncate max-w-[120px] sm:max-w-none">
+                        {adminStatus.statusText}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    {/* Active order context badge in header */}
+                    {activeOrderContext.orderNumber && (
+                      <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-xs font-mono">
+                        <Package className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>طلب #{activeOrderContext.orderNumber}</span>
+                        <button
+                          type="button"
+                          onClick={() => setActiveOrderContext({})}
+                          className="text-slate-400 hover:text-white mr-1 p-0.5 rounded hover:bg-white/[0.06] transition-colors cursor-pointer"
+                          title="إلغاء تحديد الطلب والتحدث بشكل عام"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Close button */}
+                    <button
+                      onClick={onClose}
+                      id="close-chat-modal-btn"
+                      className="w-9 h-9 rounded-xl border border-white/[0.08] bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-white transition-all active:scale-95 flex items-center justify-center cursor-pointer shadow-sm"
+                      title="إغلاق المحادثة"
+                      aria-label="إغلاق المحادثة"
+                    >
+                      <X className="w-4.5 h-4.5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Active Order Context Sub-Banner (Customer view) */}
+              {!isAdmin && activeOrderContext.orderNumber && (
+                <div className="px-4 py-1.5 bg-emerald-950/40 border-b border-emerald-500/20 flex items-center justify-between text-xs text-emerald-300 shrink-0">
+                  <div className="flex items-center gap-1.5 font-mono text-[11px] sm:text-xs">
+                    <Package className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>سياق المحادثة الحالي: طلب #{activeOrderContext.orderNumber}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setActiveOrderContext({})}
+                    className="text-[11px] text-slate-400 hover:text-white underline cursor-pointer"
+                    title="إزالة ربط الطلب بالتحدث بشكل عام"
+                  >
+                    متابعة كدعم عام
+                  </button>
+                </div>
+              )}
+
+              {/* Error Alert */}
+              {error && (
+                <div className="p-3 bg-red-950/40 border-b border-red-500/30 text-red-300 text-xs flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{error}</span>
+                  </div>
+                  <button
+                    onClick={() => setError(null)}
+                    className="text-slate-400 hover:text-white"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
 
         {/* Messages Body */}
         <div
@@ -955,7 +1376,9 @@ export const ChatModal: React.FC<ChatModalProps> = ({
             </div>
           ) : (
             messages.map((msg, index) => {
-              const isMine = msg.senderId === currentUser?.uid;
+              const isMine = isAdmin
+                ? (msg.senderRole === 'admin' || msg.senderId === currentUser?.uid)
+                : (msg.senderRole === 'user' || msg.senderId === currentUser?.uid);
               const isAdminMsg = msg.senderRole === 'admin';
               const isDeleted = msg.isDeleted || msg.text === 'تم حذف هذه الرسالة';
               // Strictly allow deletion and editing only on the user's OWN messages!
@@ -983,11 +1406,20 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                   {showSenderHeader && (
                     <div className="flex items-center gap-1.5 mb-1 px-1 font-cairo select-none">
                       <span className="text-xs font-semibold text-slate-400">
-                        {isMine ? 'أنت' : msg.senderName}
+                        {isMine
+                          ? 'أنت'
+                          : isAdmin
+                          ? conversation?.userName || msg.senderName || 'العميل'
+                          : msg.senderName || 'الدعم الفني'}
                       </span>
                       {isAdminMsg && !isMine && (
-                        <span className="text-[10.5px] px-1.5 py-0.2 rounded-md bg-emerald-500/15 text-emerald-400 font-bold border border-emerald-500/25">
+                        <span className="text-[10.5px] px-1.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400 font-bold border border-emerald-500/25">
                           الدعم الفني
+                        </span>
+                      )}
+                      {!isAdminMsg && !isMine && isAdmin && (
+                        <span className="text-[10.5px] px-1.5 py-0.5 rounded-md bg-sky-500/15 text-sky-400 font-bold border border-sky-500/25">
+                          العميل
                         </span>
                       )}
                     </div>
@@ -1261,12 +1693,14 @@ export const ChatModal: React.FC<ChatModalProps> = ({
           )}
 
           {/* Typing indicator bubble */}
-          {isAdminTyping && (
+          {(!isAdmin ? isAdminTyping : isCustomerTyping) && (
             <div className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-[#121824] border border-white/[0.07] text-slate-300 text-xs font-cairo w-fit animate-in fade-in duration-150">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '0ms' }} />
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '150ms' }} />
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-bounce" style={{ animationDelay: '300ms' }} />
-              <span className="text-slate-400 text-[11px] mr-1 font-medium">الدعم الفني يكتب الآن...</span>
+              <span className="text-slate-400 text-[11px] mr-1 font-medium">
+                {isAdmin ? `${conversation?.userName || 'العميل'} يكتب الآن...` : 'الدعم الفني يكتب الآن...'}
+              </span>
             </div>
           )}
 
@@ -1629,7 +2063,10 @@ export const ChatModal: React.FC<ChatModalProps> = ({
             </>
           )}
         </div>
-      </div>
+      </>
+    )}
+  </div>
+</div>
 
       {/* Fullscreen Lightbox Image Viewer */}
       {viewingImage && (

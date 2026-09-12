@@ -4,7 +4,6 @@ import {
   RotateCw,
   ExternalLink,
   Package,
-  Headphones,
   Bell,
   Sparkles,
   ChevronLeft,
@@ -17,9 +16,7 @@ interface AdminTopBarProps {
   onRefresh: () => void;
   isRefreshing: boolean;
   pendingOrdersCount: number;
-  unreadMessagesCount?: number;
   onNavigateToOrders: () => void;
-  onNavigateToSupport: () => void;
   onBackToHome: () => void;
 }
 
@@ -40,10 +37,6 @@ const tabTitles: Record<AdminTabId, { title: string; subtitle: string }> = {
     title: 'سجل المستخدمين',
     subtitle: 'بيانات العملاء وتواريخ التسجيل وحجم الطلبات',
   },
-  support: {
-    title: 'خدمة العملاء',
-    subtitle: 'مركز المراسلة الفورية والرد على العملاء ومتابعة الملفات',
-  },
   notifications: {
     title: 'سجل الإشعارات',
     subtitle: 'تنبيهات العمليات وطلبات الخدمات ورسائل الدعم',
@@ -60,9 +53,7 @@ export const AdminTopBar: React.FC<AdminTopBarProps> = ({
   onRefresh,
   isRefreshing,
   pendingOrdersCount,
-  unreadMessagesCount,
   onNavigateToOrders,
-  onNavigateToSupport,
   onBackToHome,
 }) => {
   const meta = tabTitles[activeTab] || { title: 'لوحة الإدارة', subtitle: '' };
@@ -105,23 +96,6 @@ export const AdminTopBar: React.FC<AdminTopBarProps> = ({
             <span>{pendingOrdersCount} قيد المراجعة</span>
           </button>
         )}
-
-        {/* Customer Support Chip */}
-        <button
-          onClick={onNavigateToSupport}
-          className={`hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-            activeTab === 'support'
-              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-              : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-white/[0.08]'
-          }`}
-          title="الانتقال إلى خدمة العملاء"
-        >
-          <Headphones className="w-3.5 h-3.5 text-emerald-400" />
-          <span>خدمة العملاء</span>
-          {unreadMessagesCount && unreadMessagesCount > 0 ? (
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          ) : null}
-        </button>
 
         {/* Data Refresh Button */}
         <button

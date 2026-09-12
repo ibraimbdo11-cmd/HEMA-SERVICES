@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { AlertTriangle, Trash2, LogOut, Loader2, X } from 'lucide-react';
 
@@ -89,11 +90,11 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
       ? Trash2
       : AlertTriangle;
 
-  return (
+  const modalContent = (
     <AnimatePresence>
       {isOpen && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 select-none"
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 select-none"
           dir="rtl"
         >
           {/* Backdrop with fade */}
@@ -200,4 +201,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
       )}
     </AnimatePresence>
   );
+
+  if (typeof document === 'undefined') return null;
+  return createPortal(modalContent, document.body);
 };

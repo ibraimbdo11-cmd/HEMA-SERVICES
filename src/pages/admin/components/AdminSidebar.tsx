@@ -1,10 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   LayoutDashboard,
   Package,
   Grid,
   Users,
-  Headphones,
   Bell,
   Settings,
   Shield,
@@ -12,14 +11,16 @@ import {
   ExternalLink,
   X,
   Sparkles,
+  LogOut,
 } from 'lucide-react';
+import { useAuth } from '../../../context/AuthContext';
+import { ConfirmationModal } from '../../../components/ConfirmationModal';
 
 export type AdminTabId =
   | 'overview'
   | 'orders'
   | 'services'
   | 'users'
-  | 'support'
   | 'notifications'
   | 'settings';
 
@@ -48,6 +49,23 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   isMobileOpen,
   onCloseMobile,
 }) => {
+  const { logout } = useAuth();
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const handleConfirmLogout = async () => {
+    try {
+      setIsLoggingOut(true);
+      await logout();
+      setShowLogoutConfirm(false);
+      onBackToHome();
+    } catch (err) {
+      console.error('Logout error:', err);
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
   const mainNavItems = [
     {
       id: 'overview' as AdminTabId,
@@ -79,16 +97,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     },
   ];
 
-  const supportNavItems = [
-    {
-      id: 'support' as AdminTabId,
-      label: 'خدمة العملاء',
-      description: 'مركز دعم ومراسلة العملاء',
-      icon: Headphones,
-      badge: stats.unreadCount && stats.unreadCount > 0 ? stats.unreadCount : undefined,
-      badgeColor: 'emerald',
-      isHighlight: true,
-    },
+  const notificationsNavItems = [
     {
       id: 'notifications' as AdminTabId,
       label: 'الإشعارات',
@@ -217,7 +226,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3 custom-scrollbar">
         {renderNavGroup('إدارة المنصة', mainNavItems)}
         <div className="h-px bg-white/[0.06] my-1" />
-        {renderNavGroup('الدعم والتواصل', supportNavItems)}
+        {renderNavGroup('التنبيهات والمتابعة', notificationsNavItems)}
         <div className="h-px bg-white/[0.06] my-1" />
         {renderNavGroup('النظام والأمان', systemNavItems)}
       </div>
@@ -239,6 +248,17 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
               المدير العام • كامل الصلاحيات
             </span>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setShowLogoutConfirm(true)}
+            id="admin-sidebar-logout-btn"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all cursor-pointer shrink-0"
+            title="تسجيل الخروج من الحساب"
+            aria-label="تسجيل الخروج من الحساب"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </div>
@@ -263,6 +283,20 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
           </div>
         </div>
       )}
+
+      {/* Logout Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={handleConfirmLogout}
+        title="تأكيد تسجيل الخروج"
+        description="هل أنت متأكد من رغبتك في تسجيل الخروج من حسابك؟"
+        confirmLabel="تسجيل الخروج"
+        cancelLabel="إلغاء"
+        destructive={true}
+        loading={isLoggingOut}
+        icon="logout"
+      />
     </>
   );
 };

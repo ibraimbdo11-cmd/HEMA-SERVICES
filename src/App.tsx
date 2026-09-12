@@ -121,15 +121,17 @@ function MainApp() {
     // Realtime SSE listener for instant notifications & order status changes
     const unsub = api.subscribeChat({
       userId: currentUser.uid,
-      role: 'user',
+      role: isAdmin ? 'admin' : 'user',
       onMessage: (msg) => {
-        if (msg.senderRole === 'admin') {
+        if (isAdmin ? msg.senderRole === 'user' : msg.senderRole === 'admin') {
           fetchUnreadSupport();
         }
       },
       onConversationUnreadUpdated: (data) => {
         if (!isMounted) return;
-        if (data.userId === currentUser.uid) {
+        if (isAdmin) {
+          fetchUnreadSupport();
+        } else if (data.userId === currentUser.uid) {
           setUnreadSupportCount(data.unreadByUser || 0);
         }
       },
@@ -257,7 +259,10 @@ function MainApp() {
             </div>
           }
         >
-          <AdminDashboard onBackToHome={() => setCurrentView('home')} />
+          <AdminDashboard
+            onBackToHome={() => setCurrentView('home')}
+            onOpenSupport={handleOpenSupport}
+          />
         </Suspense>
       ) : (
         <>
@@ -424,6 +429,10 @@ function MainApp() {
       <ChatModal
         isOpen={chatOpen}
         onClose={() => setChatOpen(false)}
+        onReturnToAdmin={() => {
+          setChatOpen(false);
+          setCurrentView('admin');
+        }}
         conversationId={chatOrderContext.conversationId}
         orderId={chatOrderContext.orderId}
         orderNumber={chatOrderContext.orderNumber}

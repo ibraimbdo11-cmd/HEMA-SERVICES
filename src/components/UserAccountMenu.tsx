@@ -49,9 +49,9 @@ export const UserAccountMenu: React.FC<UserAccountMenuProps> = ({
   const handleConfirmLogout = async () => {
     try {
       setIsLoggingOut(true);
-      setShowLogoutConfirm(false);
-      onClose();
       await logout();
+      setShowLogoutConfirm(false);
+      onNavigate('home');
     } catch (err) {
       console.error('Logout error:', err);
     } finally {
@@ -153,7 +153,10 @@ export const UserAccountMenu: React.FC<UserAccountMenuProps> = ({
                     id="menu-item-logout"
                     type="button"
                     disabled={isLoggingOut}
-                    onClick={() => setShowLogoutConfirm(true)}
+                    onClick={() => {
+                      setShowLogoutConfirm(true);
+                      onClose();
+                    }}
                     className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-red-400 hover:bg-red-500/10 active:bg-red-500/20 active:scale-[0.99] transition-all cursor-pointer select-none disabled:opacity-50"
                   >
                     <LogOut className="w-4 h-4" />
@@ -195,8 +198,8 @@ export const UserAccountMenu: React.FC<UserAccountMenuProps> = ({
         isOpen={showLogoutConfirm}
         onClose={() => setShowLogoutConfirm(false)}
         onConfirm={handleConfirmLogout}
-        title="تسجيل الخروج"
-        description="هل أنت متأكد أنك تريد تسجيل الخروج من حسابك؟"
+        title="تأكيد تسجيل الخروج"
+        description="هل أنت متأكد من رغبتك في تسجيل الخروج من حسابك؟"
         confirmLabel="تسجيل الخروج"
         cancelLabel="إلغاء"
         destructive={true}
