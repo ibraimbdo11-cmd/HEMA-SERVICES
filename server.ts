@@ -2223,7 +2223,31 @@ async function startServer() {
         hmr: false,
         watch: null,
       },
-      appType: 'spa',
+      appType: 'custom',
+    });
+    app.use((req, res, next) => {
+      if (req.path.startsWith('/@vite/client')) {
+        res.status(204).type('javascript').end();
+        return;
+      }
+      next();
+    });
+    app.use(async (req, res, next) => {
+      if (req.method !== 'GET' || req.path.startsWith('/api/') || req.path.includes('.')) {
+        next();
+        return;
+      }
+
+      try {
+        const source = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf-8');
+        const html = await vite.transformIndexHtml(req.originalUrl, source);
+        res.status(200).type('html').send(
+          html.replace(/\s*<script[^>]+src=["'][^"']*\/@vite\/client[^"']*["'][^>]*><\/script>/gi, '')
+        );
+      } catch (error) {
+        vite.ssrFixStacktrace(error as Error);
+        next(error);
+      }
     });
     app.use(vite.middlewares);
   } else {
