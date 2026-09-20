@@ -4,8 +4,23 @@ import path from 'path';
 import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
+  const disableHostedHmrClient = {
+    name: 'disable-hosted-hmr-client',
+    configureServer(server: { middlewares: { use: (handler: (req: { url?: string }, res: { statusCode: number; setHeader: (name: string, value: string) => void; end: (body?: string) => void }, next: () => void) => void) => void } }) {
+      server.middlewares.use((req, res, next) => {
+        if (req.url === '/@vite/client') {
+          res.statusCode = 204;
+          res.setHeader('Content-Type', 'application/javascript');
+          res.end('');
+          return;
+        }
+        next();
+      });
+    },
+  };
+
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [disableHostedHmrClient, react(), tailwindcss()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

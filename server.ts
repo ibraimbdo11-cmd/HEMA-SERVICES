@@ -2215,7 +2215,14 @@ app.get('/api/admin/users', requireAdmin, (_req, res) => {
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        // The hosted preview proxies HTTP but does not provide Vite's HMR
+        // WebSocket endpoint. Disable HMR explicitly in middleware mode so
+        // Vite does not inject a client that immediately reports socket errors.
+        hmr: false,
+        watch: null,
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
