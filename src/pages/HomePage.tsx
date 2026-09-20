@@ -66,7 +66,7 @@ export const HomePage: React.FC<HomePageProps> = ({
       {/* Hero Section — Fills initial viewport cleanly on both mobile and desktop */}
       <section
         id="hero-section"
-        className="relative min-h-[calc(100vh-4rem)] min-h-[calc(100dvh-4rem)] flex flex-col justify-between items-center overflow-hidden border-b border-white/[0.08] bg-[radial-gradient(ellipse_at_50%_42%,#102a27_0%,#0b171b_28%,#080d13_58%,#05070b_100%)] isolate"
+        className="relative min-h-[calc(100vh-4rem)] min-h-[calc(100dvh-4rem)] flex flex-col justify-between items-center overflow-hidden border-b border-white/[0.08] bg-[#05080d] isolate before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(ellipse_at_52%_42%,rgba(16,72,63,.42)_0%,rgba(8,31,34,.26)_30%,transparent_67%)] after:pointer-events-none after:absolute after:inset-0 after:bg-[linear-gradient(115deg,transparent_0%,rgba(16,185,129,.045)_44%,transparent_67%)]"
       >
         {/* Animated Code Network Background Layer */}
         <HeroCodeNetwork />
@@ -146,7 +146,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             <span className="text-[11px] sm:text-xs text-slate-400 group-hover:text-emerald-300 transition-colors">
               استكشف الخدمات
             </span>
-            <ChevronDown className="w-4 h-4 text-emerald-400/80 group-hover:text-emerald-300 transition-transform group-hover:translate-y-0.5" />
+            <ChevronDown className="w-4 h-4 text-emerald-400/80 group-hover:text-emerald-300 transition-transform duration-500 group-hover:translate-y-1 motion-safe:animate-[skeleton-shimmer_2.8s_ease-in-out_infinite]" />
           </button>
         </div>
       </section>

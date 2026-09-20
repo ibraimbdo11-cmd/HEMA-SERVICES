@@ -50,12 +50,12 @@ export const HeroCodeNetwork: React.FC<HeroCodeNetworkProps> = ({ className = ''
       ctx.clearRect(0, 0, width, height);
       const mobile = width < 640;
       const count = mobile ? 30 : 52;
-      const length = mobile ? width * 1.35 : Math.max(width * 0.9, 760);
-      const startX = width * 0.08 + pointerX * 10;
-      const startY = height * 0.84 + pointerY * 8;
-      const angle = -0.34;
-      const amplitude = mobile ? 40 : 72;
-      const step = length / count;
+      const length = mobile ? width * 1.25 : Math.max(width * 1.05, 860);
+      const startX = width * 0.94 + pointerX * 10;
+      const startY = height * 0.82 + pointerY * 8;
+      const angle = -Math.PI + 0.34;
+      const amplitude = mobile ? 34 : 66;
+      const step = length / (count - 1);
       const depth = (i: number) => 0.42 + 0.58 * ((Math.sin(i * 0.52 + time * 0.28) + 1) / 2);
       const point = (i: number, side: number) => {
         const u = i * step;
@@ -73,9 +73,12 @@ export const HeroCodeNetwork: React.FC<HeroCodeNetworkProps> = ({ className = ''
         const b = point(i, -1);
         const alpha = (0.2 + depth(i) * 0.48) * (mobile ? 0.72 : 1);
         if (i % 2 === 0) {
-          ctx.strokeStyle = `rgba(110, 231, 183, ${alpha * 0.42})`;
-          ctx.lineWidth = 0.9 + depth(i) * 0.9;
+          ctx.strokeStyle = `rgba(110, 231, 183, ${alpha * 0.5})`;
+          ctx.lineWidth = 0.9 + depth(i) * 1.1;
           ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+          ctx.fillStyle = `rgba(167,243,208,${alpha * 0.55})`;
+          ctx.beginPath(); ctx.arc(a.x, a.y, 1.4 + depth(i) * 1.8, 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(b.x, b.y, 1.4 + depth(i) * 1.8, 0, Math.PI * 2); ctx.fill();
         }
         [a, b].forEach((p, side) => {
           const token = TOKENS[(i * 3 + side * 5) % TOKENS.length];
