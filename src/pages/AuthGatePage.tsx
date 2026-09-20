@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Logo } from '../components/Logo';
+import { HeroCodeNetwork } from '../components/HeroCodeNetwork';
 import {
   Mail,
   Lock,
@@ -146,7 +147,7 @@ export const AuthGatePage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#07090e] flex items-center justify-center p-4 sm:p-6 lg:p-10 text-right font-cairo selection:bg-emerald-500/20 selection:text-emerald-200">
+    <div className="min-h-screen bg-[#05080d] flex items-center justify-center p-4 sm:p-6 lg:p-10 text-right font-cairo selection:bg-emerald-500/20 selection:text-emerald-200 relative overflow-hidden">
       {/* Background Subtle Architectural Grid */}
       <div className="fixed inset-0 pointer-events-none opacity-[0.035]" style={{
         backgroundImage: 'linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px)',
@@ -157,13 +158,15 @@ export const AuthGatePage: React.FC = () => {
       <div className="w-full max-w-5xl relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
         
         {/* Brand Showcase Side (Visible on Desktop) */}
-        <div className="hidden lg:flex lg:col-span-6 flex-col justify-between h-full p-8 rounded-3xl bg-[#0c1019] border border-white/[0.07] relative overflow-hidden">
-          {/* Subtle Ambient Radial Glow */}
+        <div className="hidden lg:flex lg:col-span-6 flex-col justify-between min-h-[680px] p-8 rounded-[28px] bg-[radial-gradient(ellipse_at_56%_46%,rgba(16,72,63,.38),transparent_58%),linear-gradient(145deg,#0c171c,#080d14_62%,#05080d)] border border-emerald-300/[0.12] relative overflow-hidden shadow-[0_30px_90px_-35px_rgba(16,185,129,.35)]">
+          {/* Interactive code DNA atmosphere */}
+          <HeroCodeNetwork className="opacity-80" />
+          <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-[#05080d]/15 via-transparent to-[#05080d]/65" />
           <div className="absolute -top-24 -right-24 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
           <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
 
           {/* Top Brand Header */}
-          <div className="relative z-10 space-y-6">
+          <div className="relative z-10 space-y-6 max-w-xl">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-mono font-medium">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span>DIGITAL AGENCY & SOFTWARE PLATFORM</span>
