@@ -429,10 +429,6 @@ function MainApp() {
       <ChatModal
         isOpen={chatOpen}
         onClose={() => setChatOpen(false)}
-        onReturnToAdmin={() => {
-          setChatOpen(false);
-          setCurrentView('admin');
-        }}
         conversationId={chatOrderContext.conversationId}
         orderId={chatOrderContext.orderId}
         orderNumber={chatOrderContext.orderNumber}
