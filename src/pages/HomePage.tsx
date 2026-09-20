@@ -66,7 +66,7 @@ export const HomePage: React.FC<HomePageProps> = ({
       {/* Hero Section — Fills initial viewport cleanly on both mobile and desktop */}
       <section
         id="hero-section"
-        className="relative min-h-[calc(100vh-4rem)] min-h-[calc(100dvh-4rem)] flex flex-col justify-between items-center overflow-hidden border-b border-white/[0.08] bg-[#07090e] isolate"
+        className="relative min-h-[calc(100vh-4rem)] min-h-[calc(100dvh-4rem)] flex flex-col justify-between items-center overflow-hidden border-b border-white/[0.08] bg-[radial-gradient(ellipse_at_50%_42%,#102a27_0%,#0b171b_28%,#080d13_58%,#05070b_100%)] isolate"
       >
         {/* Animated Code Network Background Layer */}
         <HeroCodeNetwork />

@@ -73,13 +73,13 @@ export const HeroCodeNetwork: React.FC<HeroCodeNetworkProps> = ({ className = ''
         const b = point(i, -1);
         const alpha = (0.2 + depth(i) * 0.48) * (mobile ? 0.72 : 1);
         if (i % 2 === 0) {
-          ctx.strokeStyle = `rgba(52, 211, 153, ${alpha * 0.28})`;
-          ctx.lineWidth = 0.7 + depth(i) * 0.6;
+          ctx.strokeStyle = `rgba(110, 231, 183, ${alpha * 0.42})`;
+          ctx.lineWidth = 0.9 + depth(i) * 0.9;
           ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
         }
         [a, b].forEach((p, side) => {
           const token = TOKENS[(i * 3 + side * 5) % TOKENS.length];
-          ctx.fillStyle = `rgba(${side ? '16,185,129' : '110,231,183'}, ${alpha})`;
+          ctx.fillStyle = `rgba(${side ? '52,211,153' : '167,243,208'}, ${Math.min(0.92, alpha + 0.12)})`;
           ctx.fillText(token, p.x - ctx.measureText(token).width / 2, p.y + 3);
           if (depth(i) > 0.72) {
             ctx.shadowBlur = 10;
@@ -108,10 +108,11 @@ export const HeroCodeNetwork: React.FC<HeroCodeNetworkProps> = ({ className = ''
 
   return (
     <div ref={containerRef} className={`absolute inset-0 overflow-hidden select-none z-0 ${className}`} aria-hidden="true">
-      <div className="absolute left-[32%] top-[24%] h-[38%] w-[42%] rounded-full bg-emerald-500/[0.06] blur-[120px]" />
-      <div className="absolute inset-0 opacity-35" style={{ backgroundImage: 'linear-gradient(rgba(52,211,153,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(52,211,153,.035) 1px, transparent 1px)', backgroundSize: '58px 58px', maskImage: 'radial-gradient(ellipse at center, black 0%, transparent 72%)' }} />
+      <div className="absolute left-[24%] top-[16%] h-[62%] w-[58%] rounded-full bg-emerald-400/[0.11] blur-[110px]" />
+      <div className="absolute left-[42%] top-[28%] h-[30%] w-[28%] rounded-full bg-teal-300/[0.08] blur-[80px]" />
+      <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(rgba(52,211,153,.055) 1px, transparent 1px), linear-gradient(90deg, rgba(52,211,153,.055) 1px, transparent 1px)', backgroundSize: '58px 58px', maskImage: 'radial-gradient(ellipse at center, black 0%, transparent 72%)' }} />
       <canvas ref={canvasRef} className="absolute inset-0 block h-full w-full" />
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#07090e]/55 via-transparent to-[#07090e]" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[#05070b]/25 via-transparent to-[#05070b]/72" />
     </div>
   );
 };
