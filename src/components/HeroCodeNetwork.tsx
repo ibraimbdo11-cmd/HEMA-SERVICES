@@ -1,1 +1,1 @@
-export { DigitalCodeDna as HeroCodeNetwork } from './DigitalCodeDna';
+export { InteractiveParticleGrid as HeroCodeNetwork } from './InteractiveParticleGrid';

@@ -66,9 +66,9 @@ export const HomePage: React.FC<HomePageProps> = ({
       {/* Hero Section — Fills initial viewport cleanly on both mobile and desktop */}
       <section
         id="hero-section"
-        className="relative min-h-[calc(100vh-4rem)] min-h-[calc(100dvh-4rem)] flex flex-col justify-between items-center overflow-hidden border-b border-white/[0.07] bg-[#07090e]"
+        className="relative min-h-[calc(100vh-4rem)] min-h-[calc(100dvh-4rem)] flex flex-col justify-between items-center overflow-hidden border-b border-white/[0.07] bg-[#05080A]"
       >
-        {/* Animated Digital Code DNA Double Helix Centerpiece */}
+        {/* Subtle Interactive Particle Network with Brownian Motion and Repulsion Bubble */}
         <HeroCodeNetwork />
 
         {/* Top spacer to balance layout vertically */}
