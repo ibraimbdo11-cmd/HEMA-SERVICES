@@ -6,6 +6,7 @@ import {defineConfig} from 'vite';
 export default defineConfig(() => {
   const disableHostedHmrClient = {
     name: 'disable-hosted-hmr-client',
+    enforce: 'post' as const,
     configureServer(server: { middlewares: { use: (handler: (req: { url?: string }, res: { statusCode: number; setHeader: (name: string, value: string) => void; end: (body?: string) => void }, next: () => void) => void) => void } }) {
       server.middlewares.use((req, res, next) => {
         if (req.url === '/@vite/client') {
@@ -16,6 +17,12 @@ export default defineConfig(() => {
         }
         next();
       });
+    },
+    transformIndexHtml(html: string) {
+      // Vite injects this module even when hmr is disabled in middleware mode.
+      // The hosted preview cannot expose the socket, so remove the injection
+      // at the HTML boundary rather than serving a broken client module.
+      return html.replace(/\s*<script type="module" src="\/@vite\/client"><\/script>/, '');
     },
   };
 
