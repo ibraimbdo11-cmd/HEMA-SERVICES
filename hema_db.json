@@ -98,7 +98,8 @@
       "role": "admin",
       "createdAt": "2026-09-20T14:13:25.358Z",
       "lastLoginAt": "2026-09-20T14:18:13.947Z",
-      "orderCount": 0
+      "orderCount": 0,
+      "lastSeenAt": "2026-09-20T14:31:35.071Z"
     }
   ],
   "notifications": [],
