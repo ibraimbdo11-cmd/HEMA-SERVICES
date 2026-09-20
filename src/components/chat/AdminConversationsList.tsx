@@ -22,7 +22,7 @@ interface AdminConversationsListProps {
   filterUnreadOnly: boolean;
   onToggleFilterUnread: () => void;
   totalUnreadCount: number;
-  onClose?: () => void;
+  onExitToDashboard?: () => void;
 }
 
 export const AdminConversationsList: React.FC<AdminConversationsListProps> = ({
@@ -36,7 +36,7 @@ export const AdminConversationsList: React.FC<AdminConversationsListProps> = ({
   filterUnreadOnly,
   onToggleFilterUnread,
   totalUnreadCount,
-  onClose,
+  onExitToDashboard,
 }) => {
   // Filter conversations based on search and unread toggle
   const filtered = conversations.filter((c) => {
@@ -83,10 +83,10 @@ export const AdminConversationsList: React.FC<AdminConversationsListProps> = ({
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-emerald-400' : ''}`} />
             </button>
 
-            {onClose && (
+            {onExitToDashboard && (
               <button
                 type="button"
-                onClick={onClose}
+                onClick={onExitToDashboard}
                 id="admin-conv-exit-btn"
                 className="w-8 h-8 rounded-xl border border-white/[0.08] bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-white transition-all active:scale-95 flex items-center justify-center cursor-pointer shadow-sm shrink-0"
                 title="إغلاق خدمة العملاء"

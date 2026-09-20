@@ -15,14 +15,14 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service, onRequest }) 
   return (
     <div
       id={`service-card-${service.id}`}
-      className="group bg-[#0d121c] border border-white/[0.08] hover:border-emerald-500/40 rounded-2xl overflow-hidden flex flex-col hover:-translate-y-1.5 transition-all duration-250 ease-out shadow-lg hover:shadow-2xl hover:shadow-emerald-950/30 text-right"
+      className="group relative bg-[linear-gradient(180deg,#0f151f_0%,#0b1119_100%)] border border-white/[0.075] hover:border-emerald-400/35 rounded-[20px] overflow-hidden flex flex-col hover:-translate-y-1 transition-all duration-300 ease-out shadow-[0_16px_40px_-24px_rgba(0,0,0,0.95),inset_0_1px_0_rgba(255,255,255,0.045)] hover:shadow-[0_24px_55px_-28px_rgba(0,0,0,0.98),0_0_30px_-18px_rgba(16,185,129,0.3),inset_0_1px_0_rgba(255,255,255,0.08)] text-right"
     >
       {/* 1. Service image - Edge-to-edge full image without any black gaps/borders */}
-      <div className="relative aspect-[16/10] overflow-hidden bg-[#070b13] border-b border-white/[0.06]">
+      <div className="relative aspect-[16/10] overflow-hidden bg-[#070b13] border-b border-white/[0.055]">
         <img
           src={service.image}
           alt={service.title}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.035] group-hover:saturate-[1.08]"
           referrerPolicy="no-referrer"
           loading="lazy"
         />
@@ -88,7 +88,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service, onRequest }) 
             type="button"
             onClick={() => onRequest(service)}
             id={`request-service-btn-${service.id}`}
-            className="w-full h-11 sm:h-12 flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-slate-950 text-sm sm:text-base font-extrabold font-cairo transition-all duration-200 shadow-md shadow-emerald-500/25 hover:shadow-emerald-500/35 cursor-pointer whitespace-nowrap"
+            className="w-full h-11 sm:h-12 flex items-center justify-center gap-2 rounded-[14px] bg-gradient-to-b from-emerald-400 to-emerald-500 hover:from-emerald-300 hover:to-emerald-400 active:scale-[0.985] text-slate-950 text-sm sm:text-base font-extrabold font-cairo transition-all duration-300 shadow-[0_8px_22px_-10px_rgba(16,185,129,0.5),inset_0_1px_0_rgba(255,255,255,0.22)] hover:shadow-[0_12px_28px_-10px_rgba(16,185,129,0.58),inset_0_1px_0_rgba(255,255,255,0.25)] cursor-pointer whitespace-nowrap"
           >
             <span>طلب الخدمة</span>
             <ArrowLeft className="w-4 h-4 transition-transform duration-200 group-hover:-translate-x-1" />

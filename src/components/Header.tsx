@@ -66,8 +66,8 @@ export const Header: React.FC<HeaderProps> = ({
         id="global-header"
         className={`sticky top-0 w-full transition-all duration-200 z-50 ${
           isScrolled
-            ? 'bg-[#080b11]/98 backdrop-blur-md border-b border-slate-800 shadow-lg shadow-black/40'
-            : 'bg-[#080b11]/92 backdrop-blur-md border-b border-slate-800/80'
+            ? 'bg-[#080b11]/88 backdrop-blur-xl border-b border-white/[0.06] shadow-[0_12px_30px_-22px_rgba(0,0,0,.95)]'
+            : 'bg-[#080b11]/72 backdrop-blur-xl border-b border-white/[0.045]'
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between relative">
@@ -82,10 +82,10 @@ export const Header: React.FC<HeaderProps> = ({
                 setIsAccountOpen(false);
                 setIsNotifOpen(false);
               }}
-              className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-all duration-200 cursor-pointer select-none ${
+              className={`w-10 h-10 rounded-[13px] border flex items-center justify-center transition-all duration-300 cursor-pointer select-none ${
                 isTopMenuOpen
-                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 shadow-md shadow-emerald-500/20'
-                  : 'bg-slate-900/90 text-slate-200 border-white/[0.08] hover:border-emerald-500/40 hover:text-white hover:bg-slate-800/80'
+                  ? 'bg-emerald-500/12 border-emerald-400/35 text-emerald-300 shadow-[0_0_22px_-12px_rgba(16,185,129,.7)]'
+                  : 'bg-[#0d131d]/78 text-slate-200 border-white/[0.075] hover:border-emerald-400/35 hover:text-white hover:bg-[#121a26]'
               }`}
               aria-label={isTopMenuOpen ? 'إغلاق القائمة الجانبية' : 'فتح القائمة الجانبية'}
             >
@@ -132,12 +132,12 @@ export const Header: React.FC<HeaderProps> = ({
                   setIsNotifOpen(false);
                   setIsTopMenuOpen(false);
                 }}
-                className={`relative w-10 h-10 rounded-xl border flex items-center justify-center font-bold text-xs transition-all cursor-pointer ${
+                className={`relative w-10 h-10 rounded-[13px] border flex items-center justify-center font-bold text-xs transition-all cursor-pointer ${
                   isAccountOpen
-                    ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 shadow-md shadow-emerald-500/20'
+                    ? 'bg-emerald-500/12 border-emerald-400/35 text-emerald-300 shadow-[0_0_22px_-12px_rgba(16,185,129,.7)]'
                     : currentUser
-                    ? 'bg-gradient-to-br from-emerald-500/20 to-slate-900 text-emerald-400 border-white/[0.08] hover:border-emerald-500/40'
-                    : 'bg-slate-900/90 text-slate-300 border-white/[0.08] hover:border-emerald-500/40 hover:text-white hover:bg-slate-800/80'
+                    ? 'bg-gradient-to-br from-emerald-500/16 to-[#0d131d] text-emerald-300 border-white/[0.075] hover:border-emerald-400/35'
+                    : 'bg-[#0d131d]/78 text-slate-300 border-white/[0.075] hover:border-emerald-400/35 hover:text-white hover:bg-[#121a26]'
                 }`}
                 aria-label="حساب المستخدم"
               >
@@ -181,7 +181,7 @@ export const Header: React.FC<HeaderProps> = ({
                 className={`relative w-10 h-10 rounded-xl border flex items-center justify-center transition-all cursor-pointer ${
                   isNotifOpen
                     ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-md shadow-emerald-500/20'
-                    : 'bg-slate-900/90 text-slate-300 border-white/[0.08] hover:border-emerald-500/40 hover:text-white hover:bg-slate-800/80'
+                    : 'bg-[#0d131d]/78 text-slate-300 border-white/[0.075] hover:border-emerald-400/35 hover:text-white hover:bg-[#121a26]'
                 }`}
                 aria-label="الإشعارات"
               >
@@ -211,10 +211,10 @@ export const Header: React.FC<HeaderProps> = ({
                 onNavigate('orders');
                 setIsTopMenuOpen(false);
               }}
-              className={`h-10 flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 rounded-xl text-xs font-semibold transition-all border cursor-pointer ${
+              className={`h-10 flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 rounded-[13px] text-xs font-semibold transition-all border cursor-pointer ${
                 currentView === 'orders'
-                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm shadow-emerald-500/10'
-                  : 'bg-slate-900/90 text-slate-200 border-white/[0.08] hover:border-emerald-500/40 hover:text-white hover:bg-slate-800/80'
+                  ? 'bg-emerald-500/12 text-emerald-300 border-emerald-400/35 shadow-[0_0_22px_-14px_rgba(16,185,129,.7)]'
+                  : 'bg-[#0d131d]/78 text-slate-200 border-white/[0.075] hover:border-emerald-400/35 hover:text-white hover:bg-[#121a26]'
               }`}
             >
               <Package className="w-4 h-4 text-emerald-400" />

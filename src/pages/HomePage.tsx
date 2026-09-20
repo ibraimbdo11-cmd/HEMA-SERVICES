@@ -118,7 +118,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               id="hero-explore-services-btn"
               type="button"
               onClick={scrollToServices}
-              className="group h-12 sm:h-14 flex-1 sm:flex-initial px-5 sm:px-9 rounded-2xl bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-slate-950 font-extrabold text-sm sm:text-base md:text-lg font-cairo transition-all duration-200 shadow-xl shadow-emerald-500/25 hover:shadow-emerald-500/40 flex items-center justify-center gap-2 sm:gap-2.5 cursor-pointer whitespace-nowrap"
+              className="group h-12 sm:h-14 flex-1 sm:flex-initial px-5 sm:px-9 rounded-[15px] bg-gradient-to-b from-emerald-400 to-emerald-500 hover:from-emerald-300 hover:to-emerald-400 active:scale-[0.985] text-slate-950 font-extrabold text-sm sm:text-base md:text-lg font-cairo transition-all duration-300 shadow-[0_10px_30px_-10px_rgba(16,185,129,0.45),inset_0_1px_0_rgba(255,255,255,0.24)] hover:shadow-[0_14px_36px_-10px_rgba(16,185,129,0.55),inset_0_1px_0_rgba(255,255,255,0.28)] flex items-center justify-center gap-2 sm:gap-2.5 cursor-pointer whitespace-nowrap relative overflow-hidden before:absolute before:inset-y-0 before:-left-1/2 before:w-1/3 before:skew-x-[-18deg] before:bg-white/20 before:blur-sm before:transition-transform before:duration-700 before:translate-x-0 group-hover:before:translate-x-[420%]"
             >
               <span>استعرض الخدمات</span>
               <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 transition-transform duration-200 group-hover:-translate-x-1" />
@@ -128,7 +128,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               id="hero-about-platform-btn"
               type="button"
               onClick={() => onNavigate('about')}
-              className="h-12 sm:h-14 flex-1 sm:flex-initial px-5 sm:px-9 rounded-2xl bg-[#121826]/90 hover:bg-[#1a2336] border border-white/[0.12] hover:border-emerald-500/40 text-slate-100 hover:text-white font-extrabold text-sm sm:text-base md:text-lg font-cairo transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center justify-center backdrop-blur-sm shadow-md active:scale-[0.98]"
+              className="h-12 sm:h-14 flex-1 sm:flex-initial px-5 sm:px-9 rounded-[15px] bg-[#0e141f]/80 hover:bg-[#151d2b] border border-white/[0.11] hover:border-emerald-400/35 text-slate-100 hover:text-white font-extrabold text-sm sm:text-base md:text-lg font-cairo transition-all duration-300 cursor-pointer whitespace-nowrap flex items-center justify-center backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] active:scale-[0.985]"
             >
               <span>عن المنصة</span>
             </button>

@@ -47,6 +47,7 @@ import {
 interface ChatModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onReturnToAdmin?: () => void;
   conversationId?: string;
   orderId?: string;
   orderNumber?: string;
@@ -55,6 +56,7 @@ interface ChatModalProps {
 export const ChatModal: React.FC<ChatModalProps> = ({
   isOpen,
   onClose,
+  onReturnToAdmin,
   conversationId,
   orderId,
   orderNumber,
@@ -1057,6 +1059,14 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     }
   };
 
+  const handleExitToDashboard = () => {
+    if (onReturnToAdmin) {
+      onReturnToAdmin();
+    } else {
+      onClose();
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -1069,7 +1079,11 @@ export const ChatModal: React.FC<ChatModalProps> = ({
       }
       onClick={(e) => {
         if (e.target === e.currentTarget) {
-          onClose();
+          if (isAdmin) {
+            handleExitToDashboard();
+          } else {
+            onClose();
+          }
         }
       }}
     >
@@ -1102,7 +1116,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
               filterUnreadOnly={adminFilterUnread}
               onToggleFilterUnread={() => setAdminFilterUnread((prev) => !prev)}
               totalUnreadCount={totalAdminUnread}
-              onClose={onClose}
+              onExitToDashboard={handleExitToDashboard}
             />
           </div>
         )}
@@ -1123,7 +1137,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                 </div>
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={handleExitToDashboard}
                   id="admin-chat-empty-exit-btn"
                   className="w-8 h-8 rounded-xl border border-white/[0.08] bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-white transition-all active:scale-95 flex items-center justify-center cursor-pointer shadow-sm"
                   title="إغلاق"
@@ -1226,7 +1240,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
 
                   <div className="flex items-center gap-2 shrink-0">
                     <button
-                      onClick={onClose}
+                      onClick={handleExitToDashboard}
                       id="close-chat-modal-btn"
                       className="w-9 h-9 rounded-xl border border-white/[0.08] bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-white transition-all active:scale-95 flex items-center justify-center cursor-pointer shadow-sm"
                       title="إغلاق المحادثة"
