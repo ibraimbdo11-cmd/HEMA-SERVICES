@@ -66,8 +66,8 @@ export const Header: React.FC<HeaderProps> = ({
         id="global-header"
         className={`sticky top-0 w-full transition-all duration-200 z-50 ${
           isScrolled
-            ? 'bg-[#080b11]/98 backdrop-blur-md border-b border-slate-800 shadow-lg shadow-black/40'
-            : 'bg-[#080b11]/92 backdrop-blur-md border-b border-slate-800/80'
+            ? 'bg-[#080b11]/96 backdrop-blur-xl border-b border-emerald-500/10 shadow-lg shadow-black/40'
+            : 'bg-[#080b11]/82 backdrop-blur-xl border-b border-white/[0.07]'
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between relative">

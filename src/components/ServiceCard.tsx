@@ -15,7 +15,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service, onRequest }) 
   return (
     <div
       id={`service-card-${service.id}`}
-      className="group bg-[#0d121c] border border-white/[0.08] hover:border-emerald-500/40 rounded-2xl overflow-hidden flex flex-col hover:-translate-y-1.5 transition-all duration-250 ease-out shadow-lg hover:shadow-2xl hover:shadow-emerald-950/30 text-right"
+      className="group relative bg-gradient-to-b from-[#111925] to-[#0b1018] border border-white/[0.08] hover:border-emerald-400/40 rounded-[20px] overflow-hidden flex flex-col hover:-translate-y-1.5 transition-all duration-300 ease-out shadow-card hover:shadow-card-hover hover:shadow-emerald-950/30 text-right"
     >
       {/* 1. Service image - Edge-to-edge full image without any black gaps/borders */}
       <div className="relative aspect-[16/10] overflow-hidden bg-[#070b13] border-b border-white/[0.06]">

@@ -66,7 +66,7 @@ export const HomePage: React.FC<HomePageProps> = ({
       {/* Hero Section — Fills initial viewport cleanly on both mobile and desktop */}
       <section
         id="hero-section"
-        className="relative min-h-[calc(100vh-4rem)] min-h-[calc(100dvh-4rem)] flex flex-col justify-between items-center overflow-hidden border-b border-white/[0.08] bg-[#07090e]"
+        className="relative min-h-[calc(100vh-4rem)] min-h-[calc(100dvh-4rem)] flex flex-col justify-between items-center overflow-hidden border-b border-white/[0.08] bg-[#07090e] isolate"
       >
         {/* Animated Code Network Background Layer */}
         <HeroCodeNetwork />
@@ -81,7 +81,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             initial={{ opacity: prefersReducedMotion ? 1 : 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: prefersReducedMotion ? 0 : 0.4, ease: 'easeOut' }}
-            className="text-2xl sm:text-4xl md:text-5xl lg:text-[3.25rem] xl:text-[3.6rem] font-black text-slate-50 font-cairo tracking-tight leading-[1.25] drop-shadow-sm flex items-center justify-center gap-2 sm:gap-3 flex-wrap"
+            className="text-2xl sm:text-4xl md:text-5xl lg:text-[3.25rem] xl:text-[3.6rem] font-black text-slate-50 font-cairo tracking-[-0.035em] leading-[1.2] drop-shadow-[0_8px_30px_rgba(0,0,0,.45)] flex items-center justify-center gap-2 sm:gap-3 flex-wrap"
           >
             <span className="whitespace-nowrap">خدمات برمجة متخصصة</span>
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-emerald-400 to-teal-300 whitespace-nowrap">
@@ -118,7 +118,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               id="hero-explore-services-btn"
               type="button"
               onClick={scrollToServices}
-              className="group h-12 sm:h-14 flex-1 sm:flex-initial px-5 sm:px-9 rounded-2xl bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] text-slate-950 font-extrabold text-sm sm:text-base md:text-lg font-cairo transition-all duration-200 shadow-xl shadow-emerald-500/25 hover:shadow-emerald-500/40 flex items-center justify-center gap-2 sm:gap-2.5 cursor-pointer whitespace-nowrap"
+              className="group relative overflow-hidden h-12 sm:h-14 flex-1 sm:flex-initial px-5 sm:px-9 rounded-[15px] bg-gradient-to-br from-emerald-300 via-emerald-400 to-emerald-500 hover:from-emerald-200 hover:to-emerald-400 active:scale-[0.98] text-slate-950 font-extrabold text-sm sm:text-base md:text-lg font-cairo transition-all duration-300 shadow-[0_10px_28px_-10px_rgba(16,185,129,.65)] hover:shadow-[0_14px_34px_-10px_rgba(16,185,129,.8)] flex items-center justify-center gap-2 sm:gap-2.5 cursor-pointer whitespace-nowrap before:absolute before:inset-y-0 before:-left-1/2 before:w-1/3 before:skew-x-[-20deg] before:bg-white/25 before:transition-transform before:duration-500 hover:before:translate-x-[420%]"
             >
               <span>استعرض الخدمات</span>
               <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 transition-transform duration-200 group-hover:-translate-x-1" />
@@ -128,7 +128,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               id="hero-about-platform-btn"
               type="button"
               onClick={() => onNavigate('about')}
-              className="h-12 sm:h-14 flex-1 sm:flex-initial px-5 sm:px-9 rounded-2xl bg-[#121826]/90 hover:bg-[#1a2336] border border-white/[0.12] hover:border-emerald-500/40 text-slate-100 hover:text-white font-extrabold text-sm sm:text-base md:text-lg font-cairo transition-all duration-200 cursor-pointer whitespace-nowrap flex items-center justify-center backdrop-blur-sm shadow-md active:scale-[0.98]"
+              className="h-12 sm:h-14 flex-1 sm:flex-initial px-5 sm:px-9 rounded-[15px] bg-[#101722]/80 hover:bg-[#172231] border border-white/[0.13] hover:border-emerald-400/50 text-slate-200 hover:text-white font-extrabold text-sm sm:text-base md:text-lg font-cairo transition-all duration-300 cursor-pointer whitespace-nowrap flex items-center justify-center backdrop-blur-sm shadow-[0_8px_24px_-14px_rgba(0,0,0,.9)] active:scale-[0.98]"
             >
               <span>عن المنصة</span>
             </button>
