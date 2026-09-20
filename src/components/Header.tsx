@@ -64,10 +64,10 @@ export const Header: React.FC<HeaderProps> = ({
     <>
       <header
         id="global-header"
-        className={`sticky top-0 w-full transition-all duration-200 z-50 ${
+        className={`sticky top-0 w-full transition-all duration-250 z-50 ${
           isScrolled
-            ? 'bg-[#080b11]/88 backdrop-blur-xl border-b border-white/[0.06] shadow-[0_12px_30px_-22px_rgba(0,0,0,.95)]'
-            : 'bg-[#080b11]/72 backdrop-blur-xl border-b border-white/[0.045]'
+            ? 'bg-[#07090e]/95 backdrop-blur-xl border-b border-white/[0.07] shadow-xl shadow-black/60'
+            : 'bg-[#07090e]/80 backdrop-blur-lg border-b border-white/[0.06]'
         }`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between relative">
@@ -82,10 +82,10 @@ export const Header: React.FC<HeaderProps> = ({
                 setIsAccountOpen(false);
                 setIsNotifOpen(false);
               }}
-              className={`w-10 h-10 rounded-[13px] border flex items-center justify-center transition-all duration-300 cursor-pointer select-none ${
+              className={`w-10 h-10 rounded-[12px] border flex items-center justify-center transition-all duration-200 cursor-pointer select-none active:scale-95 ${
                 isTopMenuOpen
-                  ? 'bg-emerald-500/12 border-emerald-400/35 text-emerald-300 shadow-[0_0_22px_-12px_rgba(16,185,129,.7)]'
-                  : 'bg-[#0d131d]/78 text-slate-200 border-white/[0.075] hover:border-emerald-400/35 hover:text-white hover:bg-[#121a26]'
+                  ? 'bg-emerald-500/15 border-emerald-500/35 text-emerald-300 shadow-sm shadow-emerald-500/20'
+                  : 'bg-white/[0.03] text-slate-300 border-white/[0.08] hover:border-emerald-500/35 hover:text-white hover:bg-white/[0.07]'
               }`}
               aria-label={isTopMenuOpen ? 'إغلاق القائمة الجانبية' : 'فتح القائمة الجانبية'}
             >
@@ -98,7 +98,7 @@ export const Header: React.FC<HeaderProps> = ({
                       : { rotate: 0, y: 0, backgroundColor: 'currentColor' }
                   }
                   transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-                  className="block h-[2.5px] w-5 rounded-full origin-center"
+                  className="block h-[2px] w-5 rounded-full origin-center"
                 />
                 {/* Middle line */}
                 <motion.span
@@ -108,7 +108,7 @@ export const Header: React.FC<HeaderProps> = ({
                       : { opacity: 1, scaleX: 1 }
                   }
                   transition={{ duration: 0.18, ease: 'easeInOut' }}
-                  className="block h-[2.5px] w-5 rounded-full bg-current origin-center"
+                  className="block h-[2px] w-5 rounded-full bg-current origin-center"
                 />
                 {/* Bottom line */}
                 <motion.span
@@ -118,7 +118,7 @@ export const Header: React.FC<HeaderProps> = ({
                       : { rotate: 0, y: 0, backgroundColor: 'currentColor' }
                   }
                   transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-                  className="block h-[2.5px] w-5 rounded-full origin-center"
+                  className="block h-[2px] w-5 rounded-full origin-center"
                 />
               </div>
             </button>
@@ -132,12 +132,12 @@ export const Header: React.FC<HeaderProps> = ({
                   setIsNotifOpen(false);
                   setIsTopMenuOpen(false);
                 }}
-                className={`relative w-10 h-10 rounded-[13px] border flex items-center justify-center font-bold text-xs transition-all cursor-pointer ${
+                className={`relative w-10 h-10 rounded-[12px] border flex items-center justify-center font-bold text-xs transition-all duration-200 cursor-pointer active:scale-95 ${
                   isAccountOpen
-                    ? 'bg-emerald-500/12 border-emerald-400/35 text-emerald-300 shadow-[0_0_22px_-12px_rgba(16,185,129,.7)]'
+                    ? 'bg-emerald-500/15 border-emerald-500/35 text-emerald-300 shadow-sm shadow-emerald-500/20'
                     : currentUser
-                    ? 'bg-gradient-to-br from-emerald-500/16 to-[#0d131d] text-emerald-300 border-white/[0.075] hover:border-emerald-400/35'
-                    : 'bg-[#0d131d]/78 text-slate-300 border-white/[0.075] hover:border-emerald-400/35 hover:text-white hover:bg-[#121a26]'
+                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25 hover:border-emerald-500/40 hover:bg-emerald-500/15'
+                    : 'bg-white/[0.03] text-slate-300 border-white/[0.08] hover:border-emerald-500/35 hover:text-white hover:bg-white/[0.07]'
                 }`}
                 aria-label="حساب المستخدم"
               >
@@ -146,7 +146,7 @@ export const Header: React.FC<HeaderProps> = ({
                     <img
                       src={profile.photo}
                       alt={profile.name}
-                      className="w-full h-full object-cover rounded-xl"
+                      className="w-full h-full object-cover rounded-[11px]"
                       referrerPolicy="no-referrer"
                     />
                   ) : (
@@ -178,10 +178,10 @@ export const Header: React.FC<HeaderProps> = ({
                   setIsAccountOpen(false);
                   setIsTopMenuOpen(false);
                 }}
-                className={`relative w-10 h-10 rounded-xl border flex items-center justify-center transition-all cursor-pointer ${
+                className={`relative w-10 h-10 rounded-[12px] border flex items-center justify-center transition-all duration-200 cursor-pointer active:scale-95 ${
                   isNotifOpen
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-md shadow-emerald-500/20'
-                    : 'bg-[#0d131d]/78 text-slate-300 border-white/[0.075] hover:border-emerald-400/35 hover:text-white hover:bg-[#121a26]'
+                    ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/35 shadow-sm shadow-emerald-500/20'
+                    : 'bg-white/[0.03] text-slate-300 border-white/[0.08] hover:border-emerald-500/35 hover:text-white hover:bg-white/[0.07]'
                 }`}
                 aria-label="الإشعارات"
               >
@@ -189,7 +189,7 @@ export const Header: React.FC<HeaderProps> = ({
                 {unreadCount > 0 && (
                   <span
                     id="unread-notifications-indicator"
-                    className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-emerald-500 text-slate-950 font-bold text-[10px] rounded-full flex items-center justify-center border-2 border-[#080b11]"
+                    className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-emerald-500 text-slate-950 font-black text-[10px] rounded-full flex items-center justify-center border-2 border-[#07090e]"
                   >
                     {unreadCount > 9 ? '9+' : unreadCount}
                   </span>
@@ -211,10 +211,10 @@ export const Header: React.FC<HeaderProps> = ({
                 onNavigate('orders');
                 setIsTopMenuOpen(false);
               }}
-              className={`h-10 flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 rounded-[13px] text-xs font-semibold transition-all border cursor-pointer ${
+              className={`h-10 flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 rounded-[12px] text-xs font-bold transition-all duration-200 border cursor-pointer active:scale-95 ${
                 currentView === 'orders'
-                  ? 'bg-emerald-500/12 text-emerald-300 border-emerald-400/35 shadow-[0_0_22px_-14px_rgba(16,185,129,.7)]'
-                  : 'bg-[#0d131d]/78 text-slate-200 border-white/[0.075] hover:border-emerald-400/35 hover:text-white hover:bg-[#121a26]'
+                  ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/35 shadow-sm shadow-emerald-500/15'
+                  : 'bg-white/[0.03] text-slate-300 border-white/[0.08] hover:border-emerald-500/35 hover:text-white hover:bg-white/[0.07]'
               }`}
             >
               <Package className="w-4 h-4 text-emerald-400" />

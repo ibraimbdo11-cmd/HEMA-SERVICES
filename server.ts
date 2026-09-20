@@ -1771,17 +1771,24 @@ app.get('/api/conversations/:id/messages', requireAuth, (req, res) => {
     returnedMessages = messages.slice(messages.length - limit);
   }
 
+  // Ensure explicit status field on all returned messages
+  const sanitizedMessages = returnedMessages.map((m) => ({
+    ...m,
+    status: m.readAt ? 'read' : (m.deliveredAt ? 'delivered' : (m.status || 'delivered')),
+    deliveredAt: m.deliveredAt || m.createdAt,
+  }));
+
   // GET is purely idempotent: do NOT mark messages as read here.
   // Reading messages is explicitly handled by POST /api/conversations/:id/read when user views the chat.
 
   if (req.query.limit || req.query.before) {
     res.json({
-      messages: returnedMessages,
+      messages: sanitizedMessages,
       totalCount,
       hasMore: limit ? messages.length > limit : false,
     });
   } else {
-    res.json(returnedMessages);
+    res.json(sanitizedMessages);
   }
 });
 
@@ -1811,6 +1818,7 @@ app.post('/api/conversations/:id/read', requireAuth, (req, res) => {
     db.messages.forEach((m) => {
       if (m.conversationId === convId && m.senderRole === 'user' && !m.readAt) {
         m.readAt = now;
+        m.status = 'read';
         updated = true;
       }
     });
@@ -1822,6 +1830,7 @@ app.post('/api/conversations/:id/read', requireAuth, (req, res) => {
     db.messages.forEach((m) => {
       if (m.conversationId === convId && m.senderRole === 'admin' && !m.readAt) {
         m.readAt = now;
+        m.status = 'read';
         updated = true;
       }
     });
@@ -1832,6 +1841,7 @@ app.post('/api/conversations/:id/read', requireAuth, (req, res) => {
     sendRealtimeEvent('messages_read', {
       conversationId: convId,
       readAt: now,
+      status: 'read',
       readByRole: isAdmin ? 'admin' : 'user',
     }, convId);
     sendRealtimeEvent('conversation_unread_updated', {
@@ -1943,6 +1953,8 @@ app.post('/api/conversations/:id/messages', requireAuth, (req, res) => {
     orderNumber: verifiedOrderNumber,
     isDeleted: false,
     isEdited: false,
+    status: 'delivered',
+    deliveredAt: new Date().toISOString(),
     createdAt: new Date().toISOString(),
   };
 

@@ -84,6 +84,8 @@ export interface MessageReplyReference {
   isImage?: boolean;
 }
 
+export type MessageStatus = 'sent' | 'delivered' | 'read';
+
 export interface MessageItem {
   id: string;
   conversationId: string;
@@ -105,7 +107,9 @@ export interface MessageItem {
   orderId?: string;
   orderNumber?: string;
   createdAt: string;
+  deliveredAt?: string;
   readAt?: string;
+  status?: MessageStatus;
 }
 
 export interface UserPresence {

@@ -27,6 +27,7 @@ import {
   Package,
   Copy,
   Check,
+  CheckCheck,
   ArrowDown,
   Upload,
   Eye,
@@ -36,6 +37,7 @@ import {
 } from 'lucide-react';
 import {
   mergeAndSortMessages,
+  getMessageStatus,
   copyTextToClipboard,
   isNearBottom,
   formatFileSize,
@@ -44,10 +46,66 @@ import {
   getFileCategory,
 } from '../lib/chatUtils';
 
+/**
+ * Single source of truth for message status indicator.
+ * Derives icon and color strictly from canonical message state.
+ * sent: single check (neutral slate)
+ * delivered: double check (neutral slate)
+ * read: double check (emerald green)
+ */
+const MessageStatusIndicator: React.FC<{
+  message: MessageItem;
+  isMine: boolean;
+}> = ({ message, isMine }) => {
+  if (!isMine || message.isDeleted) return null;
+
+  const status = getMessageStatus(message);
+
+  if (status === 'read') {
+    return (
+      <span
+        id={`msg-status-${message.id}`}
+        className="inline-flex items-center text-emerald-400 transition-colors"
+        title={
+          message.readAt
+            ? `تمت القراءة: ${new Date(message.readAt).toLocaleTimeString('ar-EG', {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}`
+            : 'تمت القراءة'
+        }
+      >
+        <CheckCheck className="w-3.5 h-3.5 stroke-[2.5]" />
+      </span>
+    );
+  }
+
+  if (status === 'delivered') {
+    return (
+      <span
+        id={`msg-status-${message.id}`}
+        className="inline-flex items-center text-slate-400 transition-colors"
+        title="تم الاستلام على الخادم"
+      >
+        <CheckCheck className="w-3.5 h-3.5 stroke-[2]" />
+      </span>
+    );
+  }
+
+  return (
+    <span
+      id={`msg-status-${message.id}`}
+      className="inline-flex items-center text-slate-500 transition-colors"
+      title="تم الإرسال"
+    >
+      <Check className="w-3.5 h-3.5 stroke-[2]" />
+    </span>
+  );
+};
+
 interface ChatModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onReturnToAdmin?: () => void;
   conversationId?: string;
   orderId?: string;
   orderNumber?: string;
@@ -56,7 +114,6 @@ interface ChatModalProps {
 export const ChatModal: React.FC<ChatModalProps> = ({
   isOpen,
   onClose,
-  onReturnToAdmin,
   conversationId,
   orderId,
   orderNumber,
@@ -91,14 +148,71 @@ export const ChatModal: React.FC<ChatModalProps> = ({
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const activeConvIdRef = useRef<string | null>(null);
+  const conversationRef = useRef<Conversation | null>(null);
+  const messagesRef = useRef<MessageItem[]>([]);
+  const markedReadIdsRef = useRef<Set<string>>(new Set());
 
-  const scheduleMarkAsRead = (convId: string, delay = 800) => {
-    if (markReadTimerRef.current) clearTimeout(markReadTimerRef.current);
-    markReadTimerRef.current = setTimeout(() => {
-      if (isOpen && !document.hidden) {
-        api.markConversationRead(convId).catch(() => {});
-      }
-    }, delay);
+  // Keep refs synchronized for event handlers and observers
+  useEffect(() => {
+    conversationRef.current = conversation;
+  }, [conversation]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  /**
+   * Idempotent read-receipt controller.
+   * Only calls server if there are actual unread messages from the other party.
+   * Tracks processed IDs to prevent redundant requests or re-trigger loops.
+   */
+  const markEligibleMessagesAsRead = (convId: string, currentMsgs?: MessageItem[]) => {
+    if (!isOpen || document.hidden || !convId) return;
+
+    const msgsToCheck = currentMsgs || messagesRef.current;
+    const targetOppositeRole = isAdmin ? 'user' : 'admin';
+
+    const eligible = msgsToCheck.filter((m) => {
+      if (m.conversationId && m.conversationId !== convId) return false;
+      if (m.senderRole !== targetOppositeRole) return false;
+      if (m.readAt || m.status === 'read') return false;
+      if (markedReadIdsRef.current.has(m.id)) return false;
+      return true;
+    });
+
+    if (eligible.length === 0) {
+      return;
+    }
+
+    // Register IDs in marked set immediately
+    eligible.forEach((m) => markedReadIdsRef.current.add(m.id));
+    const now = new Date().toISOString();
+
+    // Optimistically update local message status
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (eligible.some((e) => e.id === m.id)) {
+          return {
+            ...m,
+            status: 'read',
+            readAt: now,
+          };
+        }
+        return m;
+      })
+    );
+
+    // Update conversation unread counters locally
+    if (isAdmin) {
+      setAdminConversations((prev) =>
+        prev.map((c) => (c.id === convId ? { ...c, unreadByAdmin: 0 } : c))
+      );
+    } else {
+      setConversation((prev) => (prev && prev.id === convId ? { ...prev, unreadByUser: 0 } : prev));
+    }
+
+    // Idempotent backend call
+    api.markConversationRead(convId).catch(() => {});
   };
 
   // Active Order Context inside customer canonical conversation
@@ -286,16 +400,9 @@ export const ChatModal: React.FC<ChatModalProps> = ({
         }
       });
 
-      if (isAdmin) {
-        scheduleMarkAsRead(conv.id, 400);
-        setAdminConversations((prev) =>
-          prev.map((c) => (c.id === conv.id ? { ...c, unreadByAdmin: 0 } : c))
-        );
-      } else {
-        const hasUnread = res.messages.some((m) => m.senderRole === 'admin' && !m.readAt);
-        if (hasUnread && isOpen && !document.hidden) {
-          scheduleMarkAsRead(conv.id, 800);
-        }
+      // Idempotently process read-receipts for unread messages
+      if (isOpen && !document.hidden) {
+        markEligibleMessagesAsRead(conv.id, res.messages);
       }
     } catch (err: any) {
       setError(err.message || 'فشل في تحميل رسائل المحادثة');
@@ -395,8 +502,8 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                       container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
                     }
                   });
-                  if (isOpen && !document.hidden) {
-                    scheduleMarkAsRead(targetConvId, 1000);
+                  if (isOpen && !document.hidden && newMsg.senderRole === 'user') {
+                    markEligibleMessagesAsRead(targetConvId, [newMsg]);
                   }
                 } else {
                   setHasNewMessagesBelow(true);
@@ -460,7 +567,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                 setMessages((prev) =>
                   prev.map((m) => {
                     if (m.senderRole === 'admin' && !m.readAt) {
-                      return { ...m, readAt: readData.readAt };
+                      return { ...m, readAt: readData.readAt, status: 'read' };
                     }
                     return m;
                   })
@@ -544,7 +651,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                 });
                 if (newMsg.senderRole === 'admin') {
                   if (isOpen && !document.hidden) {
-                    scheduleMarkAsRead(conv.id, 1200);
+                    markEligibleMessagesAsRead(conv.id, [newMsg]);
                   }
                 }
               } else {
@@ -579,7 +686,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
               setMessages((prev) =>
                 prev.map((m) => {
                   if (m.senderId === currentUser.uid && !m.readAt) {
-                    return { ...m, readAt: readData.readAt };
+                    return { ...m, readAt: readData.readAt, status: 'read' };
                   }
                   return m;
                 })
@@ -646,22 +753,18 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     };
   }, [isOpen, currentUser, isAdmin, conversationId, orderId]);
 
-  // Handle document visibility change to mark unread messages read only when user actually views
+  // Handle document visibility change to mark unread messages read idempotently when user actually views
   useEffect(() => {
     const handleVisibility = () => {
-      if (isOpen && !document.hidden && conversation) {
-        const hasUnread = messages.some((m) => m.senderRole === 'admin' && !m.readAt);
-        if (hasUnread) {
-          scheduleMarkAsRead(conversation.id, 600);
-        }
+      if (isOpen && !document.hidden && activeConvIdRef.current) {
+        markEligibleMessagesAsRead(activeConvIdRef.current);
       }
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
-      if (markReadTimerRef.current) clearTimeout(markReadTimerRef.current);
     };
-  }, [isOpen, conversation, messages]);
+  }, [isOpen]);
 
   // Clean up staged attachment URL when changing or unmounting
   useEffect(() => {
@@ -839,7 +942,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
       setStagedFile(null);
       setReplyingToMessage(null);
 
-      setMessages((prev) => mergeAndSortMessages(prev, [msg]));
+      setMessages((prev) => mergeAndSortMessages(prev, [{ ...msg, status: msg.status || 'delivered' }]));
 
       if (isAdmin) {
         setAdminConversations((prev) =>
@@ -1059,14 +1162,6 @@ export const ChatModal: React.FC<ChatModalProps> = ({
     }
   };
 
-  const handleExitToDashboard = () => {
-    if (onReturnToAdmin) {
-      onReturnToAdmin();
-    } else {
-      onClose();
-    }
-  };
-
   if (!isOpen) return null;
 
   return (
@@ -1079,11 +1174,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
       }
       onClick={(e) => {
         if (e.target === e.currentTarget) {
-          if (isAdmin) {
-            handleExitToDashboard();
-          } else {
-            onClose();
-          }
+          onClose();
         }
       }}
     >
@@ -1116,7 +1207,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
               filterUnreadOnly={adminFilterUnread}
               onToggleFilterUnread={() => setAdminFilterUnread((prev) => !prev)}
               totalUnreadCount={totalAdminUnread}
-              onExitToDashboard={handleExitToDashboard}
+              onClose={onClose}
             />
           </div>
         )}
@@ -1137,7 +1228,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                 </div>
                 <button
                   type="button"
-                  onClick={handleExitToDashboard}
+                  onClick={onClose}
                   id="admin-chat-empty-exit-btn"
                   className="w-8 h-8 rounded-xl border border-white/[0.08] bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-white transition-all active:scale-95 flex items-center justify-center cursor-pointer shadow-sm"
                   title="إغلاق"
@@ -1240,7 +1331,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
 
                   <div className="flex items-center gap-2 shrink-0">
                     <button
-                      onClick={handleExitToDashboard}
+                      onClick={onClose}
                       id="close-chat-modal-btn"
                       className="w-9 h-9 rounded-xl border border-white/[0.08] bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-white transition-all active:scale-95 flex items-center justify-center cursor-pointer shadow-sm"
                       title="إغلاق المحادثة"
@@ -1661,7 +1752,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                     )}
                   </div>
 
-                  {/* Message timestamp, Edited status, and Sent (✓) / Read (✓✓) status indicator */}
+                  {/* Message timestamp, Edited status, and Sent / Delivered / Read status indicator */}
                   <div className="flex items-center gap-1.5 px-1 mt-1 font-mono text-[10px]">
                     <span className="text-slate-500 font-payment-digits">
                       {new Date(msg.createdAt).toLocaleTimeString('ar-EG', {
@@ -1673,18 +1764,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
                       <span className="text-slate-500 font-cairo text-[9px]">(معدلة)</span>
                     )}
                     {isMine && !isDeleted && (
-                      <span
-                        className={`inline-flex items-center text-xs font-bold transition-colors ${
-                          msg.readAt ? 'text-emerald-400' : 'text-slate-500'
-                        }`}
-                        title={
-                          msg.readAt
-                            ? `تمت القراءة: ${new Date(msg.readAt).toLocaleTimeString('ar-EG')}`
-                            : 'تم الإرسال'
-                        }
-                      >
-                        {msg.readAt ? '✓✓' : '✓'}
-                      </span>
+                      <MessageStatusIndicator message={msg} isMine={isMine} />
                     )}
                   </div>
                 </div>
@@ -1729,7 +1809,7 @@ export const ChatModal: React.FC<ChatModalProps> = ({
               onClick={() => {
                 scrollToBottom();
                 setHasNewMessagesBelow(false);
-                if (conversation) scheduleMarkAsRead(conversation.id, 400);
+                if (conversation) markEligibleMessagesAsRead(conversation.id);
               }}
               className="absolute -top-11 z-20 px-4 py-1.5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold shadow-lg shadow-emerald-500/25 flex items-center gap-1.5 transition-all cursor-pointer animate-bounce font-cairo"
             >

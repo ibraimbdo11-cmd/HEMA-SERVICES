@@ -1,8 +1,58 @@
-import { MessageItem } from '../types';
+import { MessageItem, MessageStatus } from '../types';
 
 /**
- * Merges two arrays of MessageItems, deduplicates by ID,
- * and sorts strictly in chronological order (oldest first).
+ * Status priority weights ensuring state transitions are strictly forward:
+ * sent (1) -> delivered (2) -> read (3). A message must never transition backward.
+ */
+const STATUS_WEIGHTS: Record<MessageStatus, number> = {
+  sent: 1,
+  delivered: 2,
+  read: 3,
+};
+
+/**
+ * Derives the canonical status of a message from its explicit fields.
+ */
+export function getMessageStatus(msg: MessageItem): MessageStatus {
+  if (msg.readAt || msg.status === 'read') return 'read';
+  if (msg.deliveredAt || msg.status === 'delivered') return 'delivered';
+  return msg.status || 'sent';
+}
+
+/**
+ * Merges two MessageItem objects idempotently, enforcing forward-only status progression.
+ */
+function mergeSingleMessage(existing: MessageItem, incoming: MessageItem): MessageItem {
+  const existingStatus = getMessageStatus(existing);
+  const incomingStatus = getMessageStatus(incoming);
+
+  const highestWeight = Math.max(
+    STATUS_WEIGHTS[existingStatus],
+    STATUS_WEIGHTS[incomingStatus]
+  );
+
+  let finalStatus: MessageStatus = 'sent';
+  if (highestWeight === 3) finalStatus = 'read';
+  else if (highestWeight === 2) finalStatus = 'delivered';
+
+  const readAt = incoming.readAt || existing.readAt;
+  const deliveredAt = incoming.deliveredAt || existing.deliveredAt;
+
+  return {
+    ...existing,
+    ...incoming,
+    // Preserve edits and text if incoming is newer or explicitly edited
+    isEdited: Boolean(existing.isEdited || incoming.isEdited),
+    isDeleted: Boolean(existing.isDeleted || incoming.isDeleted),
+    status: finalStatus,
+    readAt: finalStatus === 'read' ? (readAt || new Date().toISOString()) : undefined,
+    deliveredAt: deliveredAt || (finalStatus !== 'sent' ? incoming.createdAt : undefined),
+  };
+}
+
+/**
+ * Merges two arrays of MessageItems, deduplicates strictly by ID,
+ * enforces forward-only status progression, and sorts chronologically.
  */
 export function mergeAndSortMessages(
   current: MessageItem[],
@@ -10,17 +60,26 @@ export function mergeAndSortMessages(
 ): MessageItem[] {
   const map = new Map<string, MessageItem>();
 
-  // Add existing
+  // Add existing messages
   for (const m of current) {
     if (m && m.id) {
       map.set(m.id, m);
     }
   }
 
-  // Add/overwrite with incoming
+  // Add or merge incoming messages
   for (const m of incoming) {
     if (m && m.id) {
-      map.set(m.id, m);
+      const existing = map.get(m.id);
+      if (existing) {
+        map.set(m.id, mergeSingleMessage(existing, m));
+      } else {
+        // Ensure status field is consistently initialized
+        map.set(m.id, {
+          ...m,
+          status: getMessageStatus(m),
+        });
+      }
     }
   }
 

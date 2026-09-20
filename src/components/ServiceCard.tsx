@@ -15,28 +15,34 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service, onRequest }) 
   return (
     <div
       id={`service-card-${service.id}`}
-      className="group relative bg-[linear-gradient(180deg,#0f151f_0%,#0b1119_100%)] border border-white/[0.075] hover:border-emerald-400/35 rounded-[20px] overflow-hidden flex flex-col hover:-translate-y-1 transition-all duration-300 ease-out shadow-[0_16px_40px_-24px_rgba(0,0,0,0.95),inset_0_1px_0_rgba(255,255,255,0.045)] hover:shadow-[0_24px_55px_-28px_rgba(0,0,0,0.98),0_0_30px_-18px_rgba(16,185,129,0.3),inset_0_1px_0_rgba(255,255,255,0.08)] text-right"
+      className="group relative bg-[#0b0f18] hover:bg-[#0e1420] border border-white/[0.07] hover:border-emerald-500/35 rounded-[20px] overflow-hidden flex flex-col hover:-translate-y-1.5 transition-all duration-300 ease-out shadow-lg shadow-black/40 hover:shadow-xl hover:shadow-emerald-950/20 text-right"
     >
+      {/* Subtle technical corner highlight */}
+      <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-emerald-500/[0.04] to-transparent pointer-events-none rounded-tr-[20px]" />
+
       {/* 1. Service image - Edge-to-edge full image without any black gaps/borders */}
-      <div className="relative aspect-[16/10] overflow-hidden bg-[#070b13] border-b border-white/[0.055]">
+      <div className="relative aspect-[16/10] overflow-hidden bg-[#070a10] border-b border-white/[0.06]">
         <img
           src={service.image}
           alt={service.title}
-          className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-[1.035] group-hover:saturate-[1.08]"
+          className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
           referrerPolicy="no-referrer"
           loading="lazy"
         />
 
+        {/* Subtle vignette over image */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0b0f18]/60 via-transparent to-transparent pointer-events-none" />
+
         {/* Discount badge if applicable and not budget */}
         {service.isDiscounted && !isBudgetPricing && (
-          <div className="absolute top-3 right-3 px-3 py-1 rounded-xl bg-emerald-500 text-slate-950 font-bold text-xs shadow-md font-cairo">
+          <div className="absolute top-3 right-3 px-2.5 py-1 rounded-xl bg-emerald-500 text-slate-950 font-extrabold text-[11px] shadow-md font-cairo ring-1 ring-white/20">
             خصم خاص
           </div>
         )}
 
         {isBudgetPricing && (
-          <div className="absolute top-3 right-3 px-3 py-1 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold text-xs flex items-center gap-1.5 backdrop-blur-md font-cairo">
-            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+          <div className="absolute top-3 right-3 px-2.5 py-1 rounded-xl bg-emerald-950/70 border border-emerald-500/30 text-emerald-300 font-bold text-[11px] flex items-center gap-1.5 backdrop-blur-md font-cairo">
+            <Sparkles className="w-3 h-3 text-emerald-400" />
             <span>حسب الميزانية</span>
           </div>
         )}
@@ -46,12 +52,12 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service, onRequest }) 
       <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
         <div className="space-y-2">
           {/* 2. Service title - Bold Arabic font */}
-          <h3 className="text-base sm:text-lg font-bold text-slate-100 group-hover:text-emerald-400 transition-colors line-clamp-2 leading-snug font-cairo">
+          <h3 className="text-base sm:text-lg font-bold text-slate-100 group-hover:text-emerald-300 transition-colors line-clamp-2 leading-snug font-cairo">
             {service.title}
           </h3>
 
           {/* 3. Short description - Medium Arabic font for high legibility */}
-          <p className="text-xs sm:text-sm text-slate-300 line-clamp-2 leading-relaxed font-medium font-cairo">
+          <p className="text-xs sm:text-sm text-slate-300/90 line-clamp-2 leading-relaxed font-normal font-cairo">
             {service.shortDescription}
           </p>
         </div>
@@ -59,10 +65,10 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service, onRequest }) 
         <div className="pt-3.5 border-t border-white/[0.06] space-y-3.5">
           {/* Price area */}
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs sm:text-sm text-slate-400 font-semibold font-cairo">سعر الخدمة</span>
+            <span className="text-xs sm:text-sm text-slate-400 font-medium font-cairo">سعر الخدمة</span>
             {isBudgetPricing ? (
               <div className="flex items-center gap-1.5">
-                <span className="text-xs sm:text-sm font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 rounded-xl font-cairo">
+                <span className="text-xs sm:text-sm font-bold text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-xl font-cairo">
                   حسب الميزانية والاتفاق
                 </span>
               </div>
@@ -88,7 +94,7 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service, onRequest }) 
             type="button"
             onClick={() => onRequest(service)}
             id={`request-service-btn-${service.id}`}
-            className="w-full h-11 sm:h-12 flex items-center justify-center gap-2 rounded-[14px] bg-gradient-to-b from-emerald-400 to-emerald-500 hover:from-emerald-300 hover:to-emerald-400 active:scale-[0.985] text-slate-950 text-sm sm:text-base font-extrabold font-cairo transition-all duration-300 shadow-[0_8px_22px_-10px_rgba(16,185,129,0.5),inset_0_1px_0_rgba(255,255,255,0.22)] hover:shadow-[0_12px_28px_-10px_rgba(16,185,129,0.58),inset_0_1px_0_rgba(255,255,255,0.25)] cursor-pointer whitespace-nowrap"
+            className="w-full h-11 sm:h-12 flex items-center justify-center gap-2 rounded-[14px] bg-gradient-to-l from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 active:scale-[0.98] text-slate-950 text-sm sm:text-base font-extrabold font-cairo transition-all duration-200 shadow-md shadow-emerald-500/20 hover:shadow-emerald-500/30 cursor-pointer whitespace-nowrap"
           >
             <span>طلب الخدمة</span>
             <ArrowLeft className="w-4 h-4 transition-transform duration-200 group-hover:-translate-x-1" />
