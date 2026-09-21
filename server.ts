@@ -1,4 +1,5 @@
 import express from 'express';
+import { createServer as createHttpServer } from 'node:http';
 import path from 'path';
 import fs from 'fs';
 import multer from 'multer';
@@ -2225,9 +2226,17 @@ app.get('/api/admin/users', requireAdmin, (_req, res) => {
 // PRODUCTION / DEVELOPMENT VITE INTEGRATION
 // ----------------------------------------------------
 async function startServer() {
+  const httpServer = createHttpServer(app);
+
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        // Attach Vite's HMR WebSocket to the same HTTP server as Express.
+        // Without this, the browser's HMR client connects to a server that never
+        // receives the upgrade request and reports a premature WebSocket close.
+        hmr: { server: httpServer },
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -2239,7 +2248,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`HEMA SERVICES secure server running on http://0.0.0.0:${PORT}`);
   });
 }
