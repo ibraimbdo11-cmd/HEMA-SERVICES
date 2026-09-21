@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { AlertTriangle, Trash2, LogOut, Loader2, X } from 'lucide-react';
+import { Button } from './ui/Button';
 
 export interface ConfirmationModalProps {
   isOpen: boolean;
@@ -164,37 +165,31 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
 
             {/* Actions */}
             <div className="flex items-center justify-end gap-2.5 pt-4 mt-2 border-t border-white/[0.06]">
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={handleDismiss}
                 disabled={isActionDisabled}
-                className="h-10 px-4 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white text-xs font-semibold font-cairo transition-colors cursor-pointer disabled:opacity-50"
               >
                 {cancelLabel}
-              </button>
+              </Button>
 
-              <button
-                type="button"
+              <Button
+                id="confirmation-modal-confirm-btn"
+                variant={isDestructiveActual ? 'danger' : 'primary'}
+                size="sm"
+                loading={isLoadingActual}
+                disabled={isActionDisabled}
                 onClick={() => {
                   if (!isActionDisabled) {
                     onConfirm();
                   }
                 }}
-                disabled={isActionDisabled}
-                id="confirmation-modal-confirm-btn"
-                className={`h-10 px-5 rounded-xl text-xs font-bold font-cairo flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md disabled:opacity-50 active:scale-[0.98] ${
-                  isDestructiveActual
-                    ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-600/20'
-                    : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20'
-                }`}
+                icon={!isLoadingActual ? <IconComponent className="w-4 h-4" /> : undefined}
+                iconPosition="start"
               >
-                {isLoadingActual ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <IconComponent className="w-4 h-4" />
-                )}
-                <span>{confirmLabel}</span>
-              </button>
+                {confirmLabel}
+              </Button>
             </div>
           </motion.div>
         </div>

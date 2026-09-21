@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
+import { Portal } from './Portal';
 
 interface ToastOptions {
   message: string;
@@ -37,18 +38,24 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     <ToastContext.Provider value={{ showToast }}>
       {children}
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2.5 px-4 py-3 rounded-xl bg-[#0f172a] border border-white/10 text-slate-100 shadow-2xl shadow-black/80 max-w-md w-[90vw] sm:w-auto animate-in fade-in slide-in-from-bottom-2 duration-200 text-xs sm:text-sm font-medium">
-          {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />}
-          {toast.type === 'error' && <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />}
-          {toast.type === 'info' && <Info className="w-4 h-4 text-sky-400 shrink-0" />}
-          <span className="flex-1 leading-normal">{toast.message}</span>
-          <button
-            onClick={() => setToast(null)}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+        <Portal>
+          <div
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-[#0A0E17] border border-white/[0.1] text-slate-100 shadow-2xl shadow-black/90 max-w-md w-[90vw] sm:w-auto animate-in fade-in slide-in-from-bottom-2 duration-200 text-xs sm:text-sm font-medium font-cairo ring-1 ring-emerald-500/20"
+            dir="rtl"
           >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
+            {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />}
+            {toast.type === 'error' && <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />}
+            {toast.type === 'info' && <Info className="w-4 h-4 text-sky-400 shrink-0" />}
+            <span className="flex-1 leading-normal">{toast.message}</span>
+            <button
+              onClick={() => setToast(null)}
+              className="p-1 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-white/[0.06] transition-colors"
+              aria-label="إغلاق التنبيه"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </Portal>
       )}
     </ToastContext.Provider>
   );

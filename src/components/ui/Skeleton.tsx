@@ -15,24 +15,24 @@ export const Skeleton: React.FC<SkeletonProps> = ({ className = '' }) => {
 
 export const ServiceCardSkeleton: React.FC = () => {
   return (
-    <div className="bg-[#0d121c] border border-white/[0.07] rounded-2xl overflow-hidden flex flex-col h-full animate-pulse">
+    <div className="bg-[#0A0E17] border border-white/[0.08] rounded-[22px] overflow-hidden flex flex-col h-full animate-pulse text-right">
       {/* Image container */}
       <div className="w-full aspect-[16/10] bg-slate-800/40" />
       
       {/* Content */}
       <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
         <div className="space-y-2.5">
-          <div className="h-5 bg-slate-800/50 rounded w-3/4" />
-          <div className="h-3.5 bg-slate-800/30 rounded w-full" />
-          <div className="h-3.5 bg-slate-800/30 rounded w-4/5" />
+          <div className="h-5 bg-slate-800/50 rounded-lg w-3/4" />
+          <div className="h-3.5 bg-slate-800/30 rounded-md w-full" />
+          <div className="h-3.5 bg-slate-800/30 rounded-md w-4/5" />
         </div>
 
-        <div className="pt-3 border-t border-white/[0.05] flex items-center justify-between">
+        <div className="pt-4 border-t border-white/[0.06] flex items-center justify-between">
           <div className="space-y-1">
             <div className="h-3 bg-slate-800/30 rounded w-12" />
-            <div className="h-6 bg-slate-800/50 rounded w-20" />
+            <div className="h-6 bg-slate-800/50 rounded-lg w-20" />
           </div>
-          <div className="h-10 bg-slate-800/50 rounded-xl w-28" />
+          <div className="h-11 bg-slate-800/50 rounded-[14px] w-28" />
         </div>
       </div>
     </div>

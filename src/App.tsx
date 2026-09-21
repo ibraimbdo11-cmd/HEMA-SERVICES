@@ -2,8 +2,10 @@ import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
+import { ToastProvider } from './components/ui/Toast';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
+import { Logo } from './components/Logo';
 import { HomePage } from './pages/HomePage';
 import { ServiceDetailsPage } from './pages/ServiceDetailsPage';
 import { CheckoutPage } from './pages/CheckoutPage';
@@ -219,23 +221,14 @@ function MainApp() {
   // 1. Loading screen while Firebase checks session
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#06080e] flex flex-col items-center justify-center text-center p-4">
-        <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mb-4 animate-pulse">
-          <svg
-            className="w-6 h-6"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <polyline points="7 8 3 12 7 16" />
-            <line x1="14" y1="4" x2="10" y2="20" strokeWidth="2.4" />
-            <polyline points="17 8 21 12 17 16" />
-          </svg>
+      <div className="min-h-screen bg-[#06080C] flex flex-col items-center justify-center text-center p-4 selection:bg-emerald-500/20">
+        <div className="p-6 rounded-3xl bg-[#0A0E17]/80 border border-white/[0.08] shadow-2xl shadow-black/80 flex flex-col items-center gap-4 animate-pulse">
+          <Logo size="lg" />
+          <div className="flex items-center gap-2 text-[11px] text-slate-400 font-mono">
+            <span className="w-2 h-2 rounded-full bg-[#00FF9D] shadow-[0_0_8px_rgba(0,255,157,0.8)] animate-ping" />
+            <span>CONNECTING SYSTEM...</span>
+          </div>
         </div>
-        <p className="text-xs text-slate-400 font-mono tracking-wider">HEMA SERVICES</p>
       </div>
     );
   }
@@ -453,7 +446,9 @@ export default function App() {
   return (
     <AuthProvider>
       <NotificationProvider>
-        <MainApp />
+        <ToastProvider>
+          <MainApp />
+        </ToastProvider>
       </NotificationProvider>
     </AuthProvider>
   );

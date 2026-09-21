@@ -6,14 +6,16 @@
 
 @layer base {
   :root {
-    --bg-canvas: #07090e;
-    --bg-surface: #0d121c;
-    --bg-surface-elevated: #121824;
-    --bg-surface-hover: #172030;
-    --border-subtle: rgba(255, 255, 255, 0.07);
-    --border-hover: rgba(255, 255, 255, 0.14);
-    --accent: #10b981;
-    --accent-hover: #34d399;
+    --bg-canvas: #06080C;
+    --bg-surface: #0A0E17;
+    --bg-surface-elevated: #0F1523;
+    --bg-surface-hover: #151D2E;
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-hover: rgba(255, 255, 255, 0.16);
+    --accent: #00FF9D;
+    --accent-emerald: #10B981;
+    --accent-glow: rgba(0, 255, 157, 0.15);
+    --accent-hover: #34D399;
   }
 
   * {

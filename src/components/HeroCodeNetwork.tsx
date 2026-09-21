@@ -1,1 +1,2 @@
-export { InteractiveParticleGrid as HeroCodeNetwork } from './InteractiveParticleGrid';
+export { DigitalCoreHeroBackground as HeroCodeNetwork } from './DigitalCoreHeroBackground';
+

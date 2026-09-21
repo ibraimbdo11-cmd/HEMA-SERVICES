@@ -68,7 +68,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         id="hero-section"
         className="relative min-h-[calc(100vh-4rem)] min-h-[calc(100dvh-4rem)] flex flex-col justify-between items-center overflow-hidden border-b border-white/[0.07] bg-[#05080A]"
       >
-        {/* Subtle Interactive Particle Network with Brownian Motion and Repulsion Bubble */}
+        {/* Digital Core Hero Background with neon green dots & tech elements */}
         <HeroCodeNetwork />
 
         {/* Top spacer to balance layout vertically */}

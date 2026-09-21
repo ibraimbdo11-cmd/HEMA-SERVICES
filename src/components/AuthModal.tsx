@@ -11,6 +11,7 @@ import {
   Eye,
   EyeOff,
 } from 'lucide-react';
+import { Logo } from './Logo';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -164,7 +165,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         </button>
 
         {/* Modal Titles */}
-        <div className="text-center mb-6 space-y-1.5">
+        <div className="text-center mb-6 space-y-2">
+          <div className="flex justify-center mb-3">
+            <Logo size="sm" layout="stacked" />
+          </div>
           <h2 className="text-xl sm:text-2xl font-black text-slate-100 font-cairo tracking-tight">
             {mode === 'login' && 'تسجيل الدخول'}
             {mode === 'register' && 'إنشاء حساب جديد'}

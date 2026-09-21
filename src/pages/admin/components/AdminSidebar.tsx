@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
 import { ConfirmationModal } from '../../../components/ConfirmationModal';
+import { Logo } from '../../../components/Logo';
 
 export type AdminTabId =
   | 'overview'
@@ -188,17 +189,15 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       {/* Brand Header */}
       <div className="p-4 border-b border-white/[0.07] flex items-center justify-between shrink-0">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500/20 to-emerald-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-inner">
-            <Shield className="w-5 h-5" />
-          </div>
+          <Logo variant="monogram" className="w-9 h-9 !p-1.5" />
           <div>
             <div className="flex items-center gap-1.5">
               <h2 className="text-xs font-bold text-slate-100 font-cairo">لوحة الإدارة</h2>
-              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30">
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
                 PRO
               </span>
             </div>
-            <span className="text-[10px] text-emerald-400 font-semibold tracking-wide block">
+            <span className="text-[10px] text-slate-400 font-mono tracking-wider block mt-0.5">
               HEMA SERVICES
             </span>
           </div>
