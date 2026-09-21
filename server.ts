@@ -2223,7 +2223,7 @@ async function startServer() {
         hmr: false,
         watch: null,
       },
-      appType: 'custom',
+      appType: 'spa',
     });
     app.use((req, res, next) => {
       if (req.path.startsWith('/@vite/client')) {
@@ -2232,6 +2232,10 @@ async function startServer() {
       }
       next();
     });
+    app.get('/', (_req, res) => {
+      const html = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf-8');
+      res.status(200).type('html').send(html);
+    });
     app.use(async (req, res, next) => {
       if (req.method !== 'GET' || req.path.startsWith('/api/') || req.path.includes('.')) {
         next();
@@ -2239,11 +2243,11 @@ async function startServer() {
       }
 
       try {
-        const source = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf-8');
-        const html = await vite.transformIndexHtml(req.originalUrl, source);
-        res.status(200).type('html').send(
-          html.replace(/\s*<script[^>]+src=["'][^"']*\/@vite\/client[^"']*["'][^>]*><\/script>/gi, '')
-        );
+        // Serve the raw entry document. Calling Vite's HTML transform here
+        // re-injects /@vite/client in middleware mode, which is unavailable
+        // in the hosted preview and leaves the app with a blank root.
+        const html = fs.readFileSync(path.resolve(process.cwd(), 'index.html'), 'utf-8');
+        res.status(200).type('html').send(html);
       } catch (error) {
         vite.ssrFixStacktrace(error as Error);
         next(error);
