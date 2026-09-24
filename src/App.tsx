@@ -1,8 +1,10 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
 import { ToastProvider } from './components/ui/Toast';
+import { EnergyLineProvider, useEnergyLine } from './context/EnergyLineContext';
+import { HemaEnergyLine } from './components/HemaEnergyLine';
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { Logo } from './components/Logo';
@@ -27,6 +29,7 @@ const AdminDashboard = lazy(() =>
 
 function MainApp() {
   const { currentUser, isAdmin, loading: authLoading } = useAuth();
+  const energyLine = useEnergyLine();
 
   // Navigation State
   const [currentView, setCurrentView] = useState<
@@ -67,6 +70,53 @@ function MainApp() {
     setUnreadSupportCount(0);
     setStatusModalOrder(null);
   }, [currentUser?.uid]);
+
+  // Unified navigation trigger with HEMA Energy Line pacing
+  const handleNavigate = (view: any) => {
+    if (view === 'orders' && !currentUser) {
+      handleOpenAuth('login');
+      return;
+    }
+    if (view !== currentView) {
+      energyLine.start();
+    }
+    setCurrentView(view as any);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // View Service Details
+  const handleViewService = (serviceId: string) => {
+    const srv = services.find((s) => s.id === serviceId);
+    if (srv) {
+      energyLine.start();
+      setSelectedService(srv);
+      setCurrentView('service-details');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  // Reactive listener to ensure HEMA Energy Line tracks every view change and completes smoothly
+  const prevNavKeyRef = useRef<string>(
+    `${currentView}-${selectedService?.id || ''}-${selectedOrderIdForDetails || ''}`
+  );
+  const isInitialMountRef = useRef<boolean>(true);
+
+  useEffect(() => {
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false;
+      return;
+    }
+
+    const currentNavKey = `${currentView}-${selectedService?.id || ''}-${selectedOrderIdForDetails || ''}`;
+    if (prevNavKeyRef.current !== currentNavKey) {
+      prevNavKeyRef.current = currentNavKey;
+      energyLine.start();
+      const frame = requestAnimationFrame(() => {
+        energyLine.complete();
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+  }, [currentView, selectedService?.id, selectedOrderIdForDetails, energyLine]);
 
   // Check for unseen order status changes upon user session initialization
   useEffect(() => {
@@ -177,16 +227,6 @@ function MainApp() {
     fetchServices();
   }, []);
 
-  // View Service Details
-  const handleViewService = (serviceId: string) => {
-    const srv = services.find((s) => s.id === serviceId);
-    if (srv) {
-      setSelectedService(srv);
-      setCurrentView('service-details');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
-
   // Request Service / Open Order Modal
   const handleRequestService = (srv: ServiceItem) => {
     if (!currentUser) {
@@ -253,7 +293,7 @@ function MainApp() {
           }
         >
           <AdminDashboard
-            onBackToHome={() => setCurrentView('home')}
+            onBackToHome={() => handleNavigate('home')}
             onOpenSupport={handleOpenSupport}
           />
         </Suspense>
@@ -262,22 +302,14 @@ function MainApp() {
           {/* Header */}
           <Header
             currentView={currentView}
-            onNavigate={(view) => {
-              if (view === 'orders' && !currentUser) {
-                handleOpenAuth('login');
-                return;
-              }
-              setCurrentView(view as any);
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
+            onNavigate={handleNavigate}
             onOpenAuth={handleOpenAuth}
             onOpenSupport={(conversationId, orderId, orderNumber) =>
               handleOpenSupport(conversationId, orderId, orderNumber)
             }
             onSelectOrder={(orderId) => {
               setSelectedOrderIdForDetails(orderId);
-              setCurrentView('orders');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
+              handleNavigate('orders');
             }}
           />
 
@@ -297,7 +329,7 @@ function MainApp() {
                     loading={loadingServices}
                     onRequestService={handleRequestService}
                     onViewService={handleViewService}
-                    onNavigate={(v) => setCurrentView(v as any)}
+                    onNavigate={handleNavigate}
                   />
                 </motion.div>
               )}
@@ -312,7 +344,7 @@ function MainApp() {
                 >
                   <ServiceDetailsPage
                     service={selectedService}
-                    onBack={() => setCurrentView('home')}
+                    onBack={() => handleNavigate('home')}
                     onRequestService={handleRequestService}
                   />
                 </motion.div>
@@ -328,8 +360,8 @@ function MainApp() {
                 >
                   <CheckoutPage
                     service={selectedService}
-                    onBack={() => setCurrentView('service-details')}
-                    onViewOrders={() => setCurrentView('orders')}
+                    onBack={() => handleNavigate('service-details')}
+                    onViewOrders={() => handleNavigate('orders')}
                     onOpenAuth={() => handleOpenAuth('login')}
                     onOpenSupportForOrder={(orderId, orderNumber) =>
                       handleOpenSupport(undefined, orderId, orderNumber)
@@ -350,7 +382,7 @@ function MainApp() {
                     onOpenSupportForOrder={(orderId, orderNumber) =>
                       handleOpenSupport(undefined, orderId, orderNumber)
                     }
-                    onExploreServices={() => setCurrentView('home')}
+                    onExploreServices={() => handleNavigate('home')}
                     selectedOrderId={selectedOrderIdForDetails}
                   />
                 </motion.div>
@@ -365,7 +397,7 @@ function MainApp() {
                   transition={{ duration: 0.25, ease: 'easeOut' }}
                 >
                   <AboutPage
-                    onExploreServices={() => setCurrentView('home')}
+                    onExploreServices={() => handleNavigate('home')}
                     onOpenSupport={() => handleOpenSupport()}
                   />
                 </motion.div>
@@ -381,14 +413,7 @@ function MainApp() {
 
           {/* Global Footer */}
           <Footer
-            onNavigate={(view) => {
-              if (view === 'orders' && !currentUser) {
-                handleOpenAuth('login');
-                return;
-              }
-              setCurrentView(view as any);
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
+            onNavigate={handleNavigate}
             onOpenSupport={() => handleOpenSupport()}
           />
         </>
@@ -401,8 +426,7 @@ function MainApp() {
         onClose={() => setOrderModalOpen(false)}
         onSuccessNavigateToOrders={() => {
           setOrderModalOpen(false);
-          setCurrentView('orders');
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+          handleNavigate('orders');
         }}
         onOpenSupportAfterOrder={(orderId, orderNumber) => {
           setOrderModalOpen(false);
@@ -434,8 +458,7 @@ function MainApp() {
         onClose={() => setStatusModalOrder(null)}
         onViewOrderDetails={(orderId) => {
           setSelectedOrderIdForDetails(orderId);
-          setCurrentView('orders');
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+          handleNavigate('orders');
         }}
       />
     </div>
@@ -447,7 +470,10 @@ export default function App() {
     <AuthProvider>
       <NotificationProvider>
         <ToastProvider>
-          <MainApp />
+          <EnergyLineProvider>
+            <HemaEnergyLine />
+            <MainApp />
+          </EnergyLineProvider>
         </ToastProvider>
       </NotificationProvider>
     </AuthProvider>
