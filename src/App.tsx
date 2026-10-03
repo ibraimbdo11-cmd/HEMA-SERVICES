@@ -346,6 +346,7 @@ function MainApp() {
                     service={selectedService}
                     onBack={() => handleNavigate('home')}
                     onRequestService={handleRequestService}
+                    onOpenSupport={() => handleOpenSupport()}
                   />
                 </motion.div>
               )}

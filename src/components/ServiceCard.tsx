@@ -9,9 +9,13 @@ interface ServiceCardProps {
   onView?: (id: string) => void;
 }
 
-export const ServiceCard: React.FC<ServiceCardProps> = ({ service, onRequest }) => {
+export const ServiceCard: React.FC<ServiceCardProps> = ({ service, onRequest, onView }) => {
   const isBudgetPricing = service.pricingType === 'budget' || service.basePrice === 0;
   const currentPrice = service.isDiscounted ? service.discountedPrice : service.basePrice;
+  const isWebDesignService =
+    service.id === 'srv-1' ||
+    service.title === 'تصميم مواقع' ||
+    service.title.includes('مواقع');
 
   return (
     <div
@@ -77,6 +81,24 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service, onRequest }) 
           <p className="text-xs sm:text-sm text-slate-300/85 line-clamp-2 leading-relaxed font-normal font-cairo">
             {service.shortDescription}
           </p>
+
+          {/* Action "عرض التفاصيل" after service description */}
+          {isWebDesignService && onView && (
+            <div className="pt-1">
+              <button
+                type="button"
+                id={`view-details-${service.id}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onView(service.id);
+                }}
+                className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-bold text-[#00FF9D] hover:text-[#1affaa] transition-all group/btn font-cairo cursor-pointer"
+              >
+                <span>عرض التفاصيل</span>
+                <ArrowLeft className="w-3.5 h-3.5 transition-transform duration-200 group-hover/btn:-translate-x-1" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* 3. Pricing & Call to Action Footer */}

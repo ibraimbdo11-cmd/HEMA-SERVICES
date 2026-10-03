@@ -7,7 +7,7 @@
   "services": [
     {
       "id": "srv-1",
-      "title": "تطوير المواقع والمتاجر الإلكترونية",
+      "title": "تصميم مواقع",
       "shortDescription": "تصميم وبرمجة مواقع حديثة ومتجاوبة بأعلى معايير السرعة والأمان.",
       "description": "نقدم لك حلولاً برمجية متكاملة لإنشاء موقع شركتك أو متجرك الإلكتروني بأحدث التقنيات مع دعم كامل للسيو ولوحة تحكم متطورة.",
       "image": "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=800&q=80",
@@ -89,7 +89,18 @@
   "orders": [],
   "conversations": [],
   "messages": [],
-  "users": [],
+  "users": [
+    {
+      "id": "mC7r5WGRPcVZ7gxE4RcisNsV5Od2",
+      "name": "Hema",
+      "email": "ibraimbdo11@gmail.com",
+      "photo": "https://lh3.googleusercontent.com/a/ACg8ocJ40gN4DVRWcdZM7a7mOVvISQAJ7ozE7nolmNWW4eSsOzNJJA=s96-c",
+      "role": "admin",
+      "createdAt": "2026-10-03T07:41:37.182Z",
+      "lastLoginAt": "2026-10-03T07:41:39.087Z",
+      "orderCount": 0
+    }
+  ],
   "notifications": [],
   "uploads": []
 }

@@ -131,7 +131,7 @@ function readDB(): DBStructure {
     services: [
       {
         id: 'srv-1',
-        title: 'تطوير المواقع والمتاجر الإلكترونية',
+        title: 'تصميم مواقع',
         shortDescription: 'تصميم وبرمجة مواقع حديثة ومتجاوبة بأعلى معايير السرعة والأمان.',
         description: 'نقدم لك حلولاً برمجية متكاملة لإنشاء موقع شركتك أو متجرك الإلكتروني بأحدث التقنيات مع دعم كامل للسيو ولوحة تحكم متطورة.',
         image: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=800&q=80',
