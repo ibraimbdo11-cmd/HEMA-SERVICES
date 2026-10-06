@@ -42,6 +42,8 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           <div
             className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-[#0A0E17] border border-white/[0.1] text-slate-100 shadow-2xl shadow-black/90 max-w-md w-[90vw] sm:w-auto animate-in fade-in slide-in-from-bottom-2 duration-200 text-xs sm:text-sm font-medium font-cairo ring-1 ring-emerald-500/20"
             dir="rtl"
+            role={toast.type === 'error' ? 'alert' : 'status'}
+            aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
           >
             {toast.type === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />}
             {toast.type === 'error' && <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />}

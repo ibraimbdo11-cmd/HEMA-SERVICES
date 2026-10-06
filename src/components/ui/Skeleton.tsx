@@ -7,7 +7,7 @@ interface SkeletonProps {
 export const Skeleton: React.FC<SkeletonProps> = ({ className = '' }) => {
   return (
     <div
-      className={`skeleton-shimmer bg-slate-850/80 rounded-lg ${className}`}
+      className={`skeleton-shimmer rounded-lg ${className}`}
       style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)' }}
     />
   );

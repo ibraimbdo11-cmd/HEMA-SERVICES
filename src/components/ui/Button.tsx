@@ -35,8 +35,8 @@ export const Button: React.FC<ButtonProps> = ({
   // Base sizing styles
   const sizeStyles: Record<ButtonSize, string> = {
     sm: 'h-9 px-3.5 text-xs rounded-xl gap-1.5',
-    md: 'h-11 sm:h-11.5 px-5 text-xs sm:text-sm rounded-[14px] gap-2',
-    lg: 'h-12 sm:h-13 px-6 sm:px-7 text-sm sm:text-base rounded-2xl gap-2.5',
+    md: 'h-11 px-5 text-xs sm:text-sm rounded-[14px] gap-2',
+    lg: 'h-12 sm:h-[52px] px-6 sm:px-7 text-sm sm:text-base rounded-2xl gap-2.5',
   };
 
   // Text-action sizing differs (no heavy box padding)
@@ -91,7 +91,7 @@ export const Button: React.FC<ButtonProps> = ({
   const widthClass = fullWidth ? 'w-full' : '';
   const disabledClass = isDisabled
     ? 'opacity-50 cursor-not-allowed pointer-events-none'
-    : 'cursor-pointer';
+    : 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#06080C]';
 
   return (
     <button

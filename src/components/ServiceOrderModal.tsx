@@ -96,9 +96,12 @@ export const ServiceOrderModal: React.FC<ServiceOrderModalProps> = ({
   const discountAmount = service.isDiscounted ? service.basePrice - service.discountedPrice : 0;
 
   const handleCopyWallet = () => {
-    navigator.clipboard.writeText(walletNumber);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2400);
+    navigator.clipboard.writeText(walletNumber).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2400);
+    }).catch(() => {
+      setValidationError('تعذر نسخ الرقم، يرجى نسخه يدوياً.');
+    });
   };
 
   const formatFileSize = (bytes?: number) => {
@@ -108,9 +111,16 @@ export const ServiceOrderModal: React.FC<ServiceOrderModalProps> = ({
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
   const handleSelectedFile = async (file: File) => {
     if (!file.type.startsWith('image/')) {
       setValidationError('يرجى اختيار ملف صورة صالح (PNG, JPG, WEBP) لإثبات التحويل.');
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      setValidationError(`حجم الصورة كبير جداً. الحد الأقصى 5 ميجابايت (حجم ملفك ${formatFileSize(file.size)}).`);
       return;
     }
 
@@ -499,6 +509,15 @@ export const ServiceOrderModal: React.FC<ServiceOrderModalProps> = ({
                     /* Dashed Border Upload Area */
                     <div
                       onClick={() => fileInputRef.current?.click()}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          fileInputRef.current?.click();
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      aria-label="رفع صورة إيصال التحويل"
                       onDragOver={(e) => {
                         e.preventDefault();
                         setIsDragging(true);
@@ -533,7 +552,7 @@ export const ServiceOrderModal: React.FC<ServiceOrderModalProps> = ({
                         اضغط هنا لاختيار صورة الإيصال أو قم بالسحب والإفلات
                       </p>
                       <p className="text-xs text-slate-400 font-medium font-cairo mt-1">
-                        يدعم ملفات PNG, JPG, WEBP
+                        يدعم ملفات PNG, JPG, WEBP - الحد الأقصى 5 ميجابايت
                       </p>
                     </div>
                   )}
@@ -564,7 +583,7 @@ export const ServiceOrderModal: React.FC<ServiceOrderModalProps> = ({
                   type="submit"
                   disabled={submitting || uploading || !senderWallet.trim() || !uploadedUrl}
                   id="checkout-submit-order-btn"
-                  className="w-full h-12 sm:h-13 px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] disabled:opacity-50 disabled:hover:bg-emerald-500 text-slate-950 font-extrabold text-base sm:text-lg font-cairo transition-all duration-200 shadow-xl shadow-emerald-500/25 hover:shadow-emerald-500/40 flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
+                  className="w-full h-12 sm:h-[52px] px-6 rounded-2xl bg-emerald-500 hover:bg-emerald-400 active:scale-[0.98] disabled:opacity-50 disabled:hover:bg-emerald-500 text-slate-950 font-extrabold text-base sm:text-lg font-cairo transition-all duration-200 shadow-xl shadow-emerald-500/25 hover:shadow-emerald-500/40 flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap"
                 >
                   {submitting ? (
                     <>
